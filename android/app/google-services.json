@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "363650081795",
+    "project_id": "toutie-budget",
+    "storage_bucket": "toutie-budget.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:363650081795:android:7f3f3793ba14f420c65a36",
+        "android_client_info": {
+          "package_name": "com.xburnsx.toutie_budget"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSj8DUc-UsNAG9YHQXM1Ed3vIoA4UJ_KQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
