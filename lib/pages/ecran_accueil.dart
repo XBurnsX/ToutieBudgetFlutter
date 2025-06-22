@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'ecran_ajout_transaction.dart';
+import 'ecran_liste_comptes.dart';
 
 // --- Pages de contenu factices (nous les mettrons dans des fichiers séparés plus tard) ---
 class PageBudget extends StatelessWidget {
@@ -7,14 +8,6 @@ class PageBudget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(child: Text('Contenu de la page Budget'));
-  }
-}
-
-class PageCompte extends StatelessWidget {
-  const PageCompte({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text('Contenu de la page Compte'));
   }
 }
 
@@ -57,7 +50,7 @@ class _EcranAccueilState extends State<EcranAccueil> {
   // L'action "Nouvelle Transaction" est gérée différemment.
   static const List<Widget> _optionsDesPagesPrincipales = <Widget>[
     PageBudget(),
-    PageCompte(),
+    const EcranListeComptes(),
     PageStatistiques(),
   ];
 
@@ -106,7 +99,7 @@ class _EcranAccueilState extends State<EcranAccueil> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Mon Budget Facile - ${_titresAppBar[_indiceSelectionne]}'),
+        title: Text('${_titresAppBar[_indiceSelectionne]}'),
       ),
       body: Center(
         child: _optionsDesPagesPrincipales.elementAt(_indiceSelectionne),
@@ -136,7 +129,7 @@ class _EcranAccueilState extends State<EcranAccueil> {
         // Si _indiceSelectionne est pour Stats (2 dans _optionsDesPagesPrincipales),
         // alors l'index visuel dans la barre est 3.
         currentIndex: _indiceSelectionne >= 2 ? _indiceSelectionne + 1 : _indiceSelectionne,
-        selectedItemColor: Colors.amber[800],
+        selectedItemColor: Colors.red[800],
         unselectedItemColor: Colors.grey,
         onTap: _auChangementOnglet,
         type: BottomNavigationBarType.fixed, // Pour que tous les labels soient visibles

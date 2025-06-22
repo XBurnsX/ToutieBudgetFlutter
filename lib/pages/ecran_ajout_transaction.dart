@@ -1,9 +1,15 @@
 // lib/pages/ecran_ajout_transaction.dart
 import 'package:flutter/material.dart';
 // import 'package:shared_preferences/shared_preferences.dart'; // Décommentez pour la persistance
-
 enum TypeTransaction { depense, revenu }
-
+enum TypeMouvementFinancier {
+  depenseNormale,
+  revenuNormal,
+  pretAccorde, // Argent qui sort (vous prêtez)
+  remboursementRecu, // Argent qui rentre (on vous rembourse un prêt)
+  detteContractee, // Argent qui rentre (vous empruntez)
+  remboursementEffectue, // Argent qui sort (vous remboursez une dette)
+}
 class EcranAjoutTransaction extends StatefulWidget {
   const EcranAjoutTransaction({super.key});
 
@@ -33,6 +39,8 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
   DateTime _dateSelectionnee = DateTime.now();
   String? _marqueurSelectionne;
   final TextEditingController _noteController = TextEditingController();
+  TypeMouvementFinancier _typeMouvementSelectionne = TypeMouvementFinancier
+      .depenseNormale; // Valeur par défaut
 
   final List<String> _listeEnveloppes = [
     'Nourriture',
@@ -61,27 +69,24 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
       }
     });
   }
-
-  /*
-  Future<void> _loadPayesConnus() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _payesConnus.clear();
-      _payesConnus.addAll(prefs.getStringList('payesConnus') ?? ['Epicerie Max', 'Pharmacie Jean Coutu', 'Shell']);
-      if (_payesConnus.isEmpty) {
-        _payesConnus.addAll(['Epicerie Max', 'Pharmacie Jean Coutu', 'Shell']);
-      }
-    });
-    print("Payés connus chargés: $_payesConnus");
+  String _libellePourTypeMouvement(TypeMouvementFinancier type) {
+    switch (type) {
+      case TypeMouvementFinancier.depenseNormale:
+        return 'Dépense';
+      case TypeMouvementFinancier.revenuNormal:
+        return 'Revenu';
+      case TypeMouvementFinancier.pretAccorde:
+        return 'Prêt accordé (Sortie)';
+      case TypeMouvementFinancier.remboursementRecu:
+        return 'Remboursement reçu (Entrée)';
+      case TypeMouvementFinancier.detteContractee:
+        return 'Dette contractée (Entrée)';
+      case TypeMouvementFinancier.remboursementEffectue:
+        return 'Remboursement effectué (Sortie)';
+      default:
+        return ''; // Ne devrait pas arriver
+    }
   }
-
-  Future<void> _savePayesConnus() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('payesConnus', _payesConnus);
-    print("Payés connus sauvegardés: $_payesConnus");
-  }
-  */
-
   @override
   void dispose() {
     print("--- ECRAN DISPOSE ---");
@@ -215,6 +220,39 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Column(
           children: <Widget>[
+            // ===== DÉBUT DU CODE COLLÉ =====
+            _buildChampDetail(
+              icone: Icons.compare_arrows, // Ou une autre icône pertinente
+              libelle: 'Type Mouvement',
+              widgetContenu: DropdownButtonFormField<TypeMouvementFinancier>(
+                value: _typeMouvementSelectionne,
+                items: TypeMouvementFinancier.values.map((TypeMouvementFinancier type) {
+                  return DropdownMenuItem<TypeMouvementFinancier>(
+                    value: type,
+                    child: Text(_libellePourTypeMouvement(type), style: Theme.of(context).textTheme.bodyMedium),
+                  );
+                }).toList(),
+                onChanged: (TypeMouvementFinancier? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _typeMouvementSelectionne = newValue;
+                      print("Type Mouvement sélectionné: $newValue");
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: 'Type de mouvement',
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0),
+                ),
+                isExpanded: true,
+              ),
+            ),
+            _buildSeparateurDansCarte(),
+            // ===== FIN DU CODE COLLÉ =====
+
+            // VOTRE ANCIEN PREMIER CHAMP (Provenance) EST MAINTENANT LE DEUXIÈME
             _buildChampDetail(
               icone: Icons.swap_horiz,
               libelle: 'Provenance',

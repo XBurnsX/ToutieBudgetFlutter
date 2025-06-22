@@ -18,13 +18,10 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Définissons nos couleurs personnalisées
-    const Color couleurFondSombre = Color(
-        0xFF121212); // Un noir pas tout à fait 0x000000, un peu plus doux
-    const Color couleurPrimaireRouge = Colors
-        .redAccent; // Ou un rouge plus spécifique ex: const Color(0xFFD32F2F);
+    const Color couleurFondSombre = Color(0xFF121212); // Un noir pas tout à fait 0x000000, un peu plus doux
+    const Color couleurPrimaireRouge = Colors.redAccent; // Ou un rouge plus spécifique ex: const Color(0xFFD32F2F);
     const Color couleurTexteBlanc = Colors.white;
-    const Color couleurSurfaceSombre = Color(
-        0xFF1E1E1E); // Pour les surfaces comme les Cards, dialogues
+    const Color couleurSurfaceSombre = Color(0xFF1E1E1E); // Pour les surfaces comme les Cards, dialogues
 
     return MaterialApp(
       title: 'Mon Budget Facile',
