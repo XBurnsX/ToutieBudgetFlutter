@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:toutie_budget/models/compte_model.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // --- L'ÉCRAN LUI-MÊME ---
 class EcranListeComptes extends StatefulWidget {
@@ -11,37 +12,44 @@ class EcranListeComptes extends StatefulWidget {
 }
 
 class _EcranListeComptesState extends State<EcranListeComptes> {
-  final List<Compte> _tousLesComptes = [];
-    //   Compte(id: 'c1', nom: 'Compte Chèque Principal', type: TypeDeCompte.compteBancaire, solde: 1250.75),
-    //   Compte(id: 'c2', nom: 'Compte Épargne Avenir', type: TypeDeCompte.compteBancaire, solde: 5300.00),
-    //   Compte(id: 'd1', nom: 'Prêt Étudiant', type: TypeDeCompte.dette, solde: -8750.00),
-    //   Compte(id: 'i1', nom: 'CELI Investissements', type: TypeDeCompte.investissement, solde: 12000.00),
-    //   Compte(id: 'c3', nom: 'Petite Caisse', type: TypeDeCompte.compteBancaire, solde: 150.00),
-    // ];
+  User? _currentUser;
 
-
-  // Filtrer les comptes pour la section "Compte Courant"
-  List<Compte> get _comptesCourants {
-    return _tousLesComptes.where((compte) => compte.type == TypeDeCompte.compteBancaire).toList();
-  }
-  List<Compte> get _comptesDettes {
-    return _tousLesComptes.where((compte) => compte.type == TypeDeCompte.dette).toList();
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = FirebaseAuth.instance.currentUser;
+    // Pas besoin d'initialiser _tousLesComptes ici, car StreamBuilder s'en chargera
   }
 
-  List<Compte> get _comptesInvestissements {
-    return _tousLesComptes.where((compte) => compte.type == TypeDeCompte.investissement).toList();
-  }
+  // Les getters pour filtrer et calculer les soldes fonctionneront
+  // sur la liste des comptes fournie par le StreamBuilder.
 
-  // Calculer le solde total des comptes courants
-  double get _soldeTotalComptesCourants {
-    return _comptesCourants.fold(0.0, (sum, item) => sum + item.solde);
-  }
-  double get _soldeTotalDettes {
-    return _comptesDettes.fold(0.0, (sum, item) => sum + item.solde);
-  }
-
-  double get _soldeTotalInvestissements {
-    return _comptesInvestissements.fold(0.0, (sum, item) => sum + item.solde);
+  // Helper pour construire un Compte depuis un DocumentSnapshot
+  Compte _compteFromSnapshot(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data()! as Map<String, dynamic>;
+    // S'assurer que les noms des champs correspondent à ceux dans Firestore
+    // et que votre modèle Compte a un constructeur ou une factory correspondante.
+    return Compte(
+      id: doc.id,
+      nom: data['nom'] ?? 'Nom inconnu',
+      // Assurez-vous que la conversion du type de String vers enum est robuste
+      type: TypeDeCompte.values.firstWhere(
+            (e) =>
+        e
+            .toString()
+            .split('.')
+            .last == (data['type'] ?? 'compteBancaire'),
+        orElse: () =>
+        TypeDeCompte
+            .compteBancaire, // Valeur par défaut si non trouvé ou invalide
+      ),
+      solde: (data['soldeActuel'] as num?)?.toDouble() ?? 0.0,
+      // Utiliser soldeActuel ou soldeInitial
+      // Si vous avez un champ couleurValue dans votre modèle et Firestore :
+      couleurValue: data['couleurValue'] as int? ??
+          Colors.blue.value, // Valeur par défaut
+      // dateCreation: (data['dateCreation'] as Timestamp?)?.toDate(), // Si vous stockez et utilisez la date
+    );
   }
 
 
@@ -49,17 +57,109 @@ class _EcranListeComptesState extends State<EcranListeComptes> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Note: L'AppBar affichée sera celle de EcranAccueil si EcranListeComptes
-    // est un onglet de EcranAccueil. Le titre 'Comptes' devrait venir
-    // de la logique de _titresAppBar dans EcranAccueil.
+    if (_currentUser == null) {
+      // Cas où l'utilisateur n'est pas (encore) connecté
+      // Peut arriver brièvement au démarrage ou si la session expire.
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text("Chargement de l'utilisateur...",
+                  style: theme.textTheme.titleMedium),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Le StreamBuilder devient le widget racine pour la partie dynamique du corps
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .collection('comptes')
+          .orderBy('nom') // Ou 'dateCreation', etc.
+          .snapshots(),
+      builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+        if (snapshot.hasError) {
+          print("Erreur Firestore Stream: ${snapshot.error}");
+          return Scaffold(
+              body: Center(
+                  child: Text('Une erreur est survenue: ${snapshot.error}')));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          // L'utilisateur est connecté mais n'a aucun compte.
+          // On peut afficher la structure de la page avec des messages "Aucun compte".
+          // Ou un message unique invitant à créer un compte.
+          // Pour cet exemple, je vais réutiliser votre structure avec des listes vides.
+          final List<Compte> tousLesComptes = []; // Liste vide
+          return _buildComptesUI(context, theme, tousLesComptes);
+        }
+
+        // Transformer les documents Firestore en une liste d'objets Compte
+        final List<Compte> tousLesComptes = snapshot.data!.docs.map(
+            _compteFromSnapshot).toList();
+
+        // Maintenant, passez cette liste à une méthode qui construit l'UI
+        return _buildComptesUI(context, theme, tousLesComptes);
+      },
+    );
+  }
+
+  // Nouvelle méthode pour construire l'interface utilisateur des comptes
+  // afin de ne pas dupliquer la logique dans le StreamBuilder
+  Widget _buildComptesUI(BuildContext context, ThemeData theme,
+      List<Compte> tousLesComptes) {
+    // Vos getters existants fonctionneront maintenant sur la liste `tousLesComptes`
+    // qui est passée en argument, et qui vient de Firestore.
+    List<Compte> getComptesCourants() {
+      return tousLesComptes.where((compte) =>
+      compte.type == TypeDeCompte.compteBancaire).toList();
+    }
+    List<Compte> getComptesDettes() {
+      return tousLesComptes
+          .where((compte) =>
+          compte.type == TypeDeCompte.dette ||
+          compte.type == TypeDeCompte.credit) // <--- MODIFICATION ICI
+          .toList();
+    }
+    List<Compte> getComptesInvestissements() {
+      return tousLesComptes.where((compte) =>
+      compte.type == TypeDeCompte.investissement).toList();
+    }
+
+    double getSoldeTotalComptesCourants() {
+      return getComptesCourants().fold(0.0, (sum, item) => sum + item.solde);
+    }
+    double getSoldeTotalDettes(List<Compte> comptesDettes) { // Assurez-vous de passer la liste filtrée
+      return comptesDettes.fold(0.0, (sum, item) => sum + item.solde);
+    }
+    double getSoldeTotalInvestissements() {
+      return getComptesInvestissements().fold(
+          0.0, (sum, item) => sum + item.solde);
+    }
+
+    final comptesCourants = getComptesCourants();
+    final soldeTotalComptesCourants = getSoldeTotalComptesCourants();
+    final comptesDettes = getComptesDettes(); // Appeler avec la liste complète
+    final soldeTotalDettes = getSoldeTotalDettes(comptesDettes);
+    final comptesInvestissements = getComptesInvestissements();
+    final soldeTotalInvestissements = getSoldeTotalInvestissements();
+
 
     return Scaffold(
-      // Si EcranListeComptes avait son propre AppBar dédié (poussé comme une nouvelle route):
-
-      body: ListView( // Utiliser ListView pour permettre le défilement
+      body: ListView(
         children: <Widget>[
-          const SizedBox(height: 15.0), // padding entre le titre et Toutes les transaction
-          // BANDEAU "TOUTES LES TRANSACTIONS"
+          const SizedBox(height: 15.0),
           Material(
             color: theme.cardColor,
             child: InkWell(
@@ -67,294 +167,268 @@ class _EcranListeComptesState extends State<EcranListeComptes> {
                 print("Bandeau Toutes les transactions cliqué");
                 // TODO: Naviguer vers l'écran de toutes les transactions
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              child: Container(/* ... Votre bandeau Toutes les transactions ... */
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 12.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    Text(
-                      'Toutes les transactions',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: theme.textTheme.titleMedium?.color,
-                    ),
+                    Text('Toutes les transactions',
+                        style: theme.textTheme.titleMedium),
+                    Icon(Icons.chevron_right,
+                        color: theme.textTheme.titleMedium?.color),
                   ],
                 ),
               ),
             ),
           ),
-
-          // PADDING SOUS LE BANDEAU "TOUTES LES TRANSACTIONS"
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0), // Ajustez la hauteur du padding entre toutes les transaction et Argent comptant
-          ),
+          // ... Vos Dividers et Paddings ...
+          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0)),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Divider(
-              color: Theme.of(context).dividerColor, // Ou une autre couleur de thème
-              thickness: 1,
-              height: 20,
-              indent: 16,
-              endIndent: 16,
-            ),
+            child: Divider(color: Theme
+                .of(context)
+                .dividerColor,
+                thickness: 1,
+                height: 20,
+                indent: 16,
+                endIndent: 16),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0), // Ajustez la hauteur du padding entre toutes les transaction et Argent comptant
-          ),
-          // SECTION "COMPTE COURANT" / "ARGENT COMPTANT"
+          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0)),
+
+          // SECTION "ARGENT COMPTANT"
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // TITRE DE LA SECTION
-                Row(
+                Row(/* ... Titre Argent Comptant ... */
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    Text('Argent Comptant',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold)),
                     Text(
-                      'Argent Comptant', // Ou "Comptes Courants"
+                      '${soldeTotalComptesCourants.toStringAsFixed(2)} \$',
                       style: theme.textTheme.titleLarge?.copyWith(
-                        // fontSize: 18, // Si vous voulez une taille spécifique pour les titres de section
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '${_soldeTotalComptesCourants.toStringAsFixed(2)} \$',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        // fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: _soldeTotalComptesCourants >= 0 ? Colors.greenAccent[400] : Colors.redAccent,
-                      ),
+                          fontWeight: FontWeight.bold,
+                          color: soldeTotalComptesCourants >= 0 ? Colors
+                              .greenAccent[400] : Colors.redAccent),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8.0), // Petit espace avant la liste des comptes
-
-                // LISTE DES COMPTES COURANTS
-                if (_comptesCourants.isEmpty)
-                  Padding(
+                const SizedBox(height: 8.0),
+                if (comptesCourants.isEmpty)
+                  Padding(/* ... Aucun compte ... */
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: Center(
-                        child: Text(
-                          'Aucun compte de ce type.',
-                          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
-                        )
-                    ),
+                    child: Center(child: Text('Aucun compte de ce type.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey))),
                   )
                 else
                   ListView.builder(
-                    shrinkWrap: true, // Important dans un ListView parent
-                    physics: const NeverScrollableScrollPhysics(), // Important dans un ListView parent
-                    itemCount: _comptesCourants.length,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: comptesCourants.length,
                     itemBuilder: (context, index) {
-                      final compte = _comptesCourants[index];
-                      return Card( // Chaque compte dans une Card
-                        // margin: const EdgeInsets.symmetric(vertical: 4.0), // Déjà dans le thème de la Card
+                      final compte = comptesCourants[index];
+                      return Card(
+                        // Utilisez la couleur du compte ici si vous le souhaitez
+                        // color: compte.couleur.withOpacity(0.1), // Exemple
                         child: ListTile(
-                          title: Text(compte.nom, style: theme.textTheme.titleMedium),
+                          leading: CircleAvatar( // Exemple d'utilisation de la couleur
+                            backgroundColor: compte.couleur,
+                            child: Text(compte.nom.isNotEmpty ? compte.nom[0]
+                                .toUpperCase() : '?',
+                                style: const TextStyle(color: Colors.white)),
+                          ),
+                          title: Text(compte.nom, style: theme.textTheme
+                              .titleMedium),
                           trailing: Text(
                             '${compte.solde.toStringAsFixed(2)} \$',
                             style: theme.textTheme.bodyLarge?.copyWith(
-                              color: compte.solde >= 0 ? theme.colorScheme.onSurface : Colors.redAccent,
-                            ),
+                                color: compte.solde >= 0 ? theme.colorScheme
+                                    .onSurface : Colors.redAccent),
                           ),
                           onTap: () {
-                            // TODO: Naviguer vers les détails du compte ou les transactions de ce compte
-                            print('Compte ${compte.nom} cliqué');
+                            print('Compte ${compte.nom} cliqué (ID: ${compte
+                                .id})');
+                            // TODO: Naviguer vers les détails/transactions du compte
                           },
                         ),
                       );
                     },
                   ),
-
-                // PADDING SUPPLÉMENTAIRE EN HAUTEUR AVANT LA PROCHAINE SECTION (SI NÉCESSAIRE)
-                const SizedBox(height: 25.0), // Padding entre les comptes et les dettes
+                const SizedBox(height: 25.0),
               ],
             ),
           ),
-// ... après la section "Argent Comptant" et son SizedBox de séparation
+          // ... Vos Dividers et Paddings ...
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Divider(
-              color: Theme.of(context).dividerColor, // Ou une autre couleur de thème
-              thickness: 1,
-              height: 20,
-              indent: 16,
-              endIndent: 16,
-            ),
+            child: Divider(color: Theme
+                .of(context)
+                .dividerColor,
+                thickness: 1,
+                height: 20,
+                indent: 16,
+                endIndent: 16),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0), // Ajustez la hauteur du padding entre toutes les transaction et Argent comptant
-          ),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0)),
+
           // --- SECTION DETTES ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // TITRE DE LA SECTION DETTES
-                Row(
+                Row( // Titre Dettes
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Dettes',
+                      'Dettes', // Le titre de la section reste "Dettes"
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
-                      '${_soldeTotalDettes.toStringAsFixed(2)} \$', // Les dettes sont souvent négatives
+                      '${soldeTotalDettes.toStringAsFixed(2)} \$', // Ceci inclura maintenant les soldes des crédits
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        // Pour les dettes, un solde "moins négatif" est "meilleur",
-                        // mais généralement on affiche la valeur telle quelle.
-                        // La couleur pourrait être neutre ou toujours rouge/orange pour les dettes.
-                        color: _soldeTotalDettes == 0 ? theme.colorScheme.onSurface : Colors.orangeAccent,
+                        color: soldeTotalDettes == 0 ? theme.colorScheme.onSurface : Colors.orangeAccent,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8.0),
-
-                // LISTE DES COMPTES DE DETTE
-                if (_comptesDettes.isEmpty)
+                if (comptesDettes.isEmpty) // Ce message s'affichera si aucun compte de type dette OU credit n'existe
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
                     child: Center(
                         child: Text(
-                          'Aucune dette enregistrée.',
+                          'Aucune dette ou crédit enregistré.', // Vous pouvez ajuster le message
                           style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
-                        )
-                    ),
+                        )),
                   )
                 else
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _comptesDettes.length,
+                    itemCount: comptesDettes.length, // La liste inclut maintenant les crédits
                     itemBuilder: (context, index) {
-                      final compte = _comptesDettes[index];
+                      final compte = comptesDettes[index]; // Peut être un Compte de type 'dette' ou 'credit'
                       return Card(
                         child: ListTile(
-                          title: Text(compte.nom, style: theme.textTheme.titleMedium),
-                          trailing: Text(
-                            '${compte.solde.toStringAsFixed(2)} \$',
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              // Pour une dette, le solde est généralement négatif.
-                              // On peut choisir de le montrer en rouge/orange ou couleur neutre.
-                              color: compte.solde == 0 ? theme.colorScheme.onSurface : Colors.orangeAccent,
-                            ),
-                          ),
-                          onTap: () {
-                            print('Compte ${compte.nom} cliqué');
-                            // TODO: Naviguer vers les détails du compte ou les transactions
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                const SizedBox(height: 25.0), // Padding entre les comptes et les dettes
-              ],
-            ),
-          ),
-// ... après la section "Argent Comptant" et son SizedBox de séparation
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Divider(
-              color: Theme.of(context).dividerColor, // Ou une autre couleur de thème
-              thickness: 1,
-              height: 20,
-              indent: 16,
-              endIndent: 16,
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0), // Ajustez la hauteur du padding entre dette et investissement
-          ),
-          // --- SECTION Investissement ---
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // TITRE DE LA SECTION INVESTISSEMENTS
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Investissements',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      // Pour les investissements, un solde positif est généralement bon.
-                      // La couleur peut être verte pour positif, rouge pour négatif (si possible), ou neutre.
-                      '${_soldeTotalInvestissements.toStringAsFixed(2)} \$',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: _soldeTotalInvestissements == 0
-                            ? theme.colorScheme.onSurface // Neutre si zéro
-                            : _soldeTotalInvestissements > 0
-                            ? Colors.greenAccent[400] // Vert pour positif
-                            : Colors.redAccent,      // Rouge pour négatif (si un investissement peut avoir un solde négatif)
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8.0),
-
-                // LISTE DES COMPTES D'INVESTISSEMENT
-                if (_comptesInvestissements.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: Center(
-                        child: Text(
-                          'Aucun investissement enregistré.',
-                          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
-                        )
-                    ),
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(), // Important dans un ListView parent
-                    itemCount: _comptesInvestissements.length,
-                    itemBuilder: (context, index) {
-                      final compte = _comptesInvestissements[index];
-                      return Card( // Utilise le CardTheme de votre ThemeData
-                        child: ListTile(
+                          leading: CircleAvatar(
+                              backgroundColor: compte.couleur,
+                              child: Text(
+                                  compte.nom.isNotEmpty
+                                      ? compte.nom[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(color: Colors.white))),
                           title: Text(compte.nom, style: theme.textTheme.titleMedium),
                           trailing: Text(
                             '${compte.solde.toStringAsFixed(2)} \$',
                             style: theme.textTheme.bodyLarge?.copyWith(
                               color: compte.solde == 0
                                   ? theme.colorScheme.onSurface
-                                  : compte.solde > 0
-                                  ? Colors.greenAccent[400]
-                                  : Colors.redAccent,
+                                  : Colors.orangeAccent, // Style cohérent pour dettes et crédits
                             ),
                           ),
                           onTap: () {
-                            print('Compte d\'investissement ${compte.nom} cliqué');
-                            // TODO: Naviguer vers les détails du compte ou les transactions
+                            print('Compte ${compte.type.toString().split('.').last} ${compte.nom} cliqué (ID: ${compte.id})');
+
                           },
                         ),
                       );
                     },
                   ),
-                const SizedBox(height: 24.0), // Espace en bas de la section (ou avant un prochain Divider/section)
+                const SizedBox(height: 25.0),
               ],
             ),
           ),
-          const SizedBox(height: 24.0), // Espace avant la prochaine section
+          // ... Vos Dividers et Paddings ...
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Divider(color: Theme
+                .of(context)
+                .dividerColor,
+                thickness: 1,
+                height: 20,
+                indent: 16,
+                endIndent: 16),
+          ),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0)),
+
+          // --- SECTION INVESTISSEMENTS ---
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(/* ... Titre Investissements ... */
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Investissements',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold)),
+                    Text(
+                      '${soldeTotalInvestissements.toStringAsFixed(2)} \$',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: soldeTotalInvestissements == 0
+                              ? theme.colorScheme.onSurface
+                              : (soldeTotalInvestissements > 0 ? Colors
+                              .greenAccent[400] : Colors.redAccent)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8.0),
+                if (comptesInvestissements.isEmpty)
+                  Padding(/* ... Aucun investissement ... */
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: Center(child: Text(
+                        'Aucun investissement enregistré.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey))),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: comptesInvestissements.length,
+                    itemBuilder: (context, index) {
+                      final compte = comptesInvestissements[index];
+                      return Card(
+                        child: ListTile(
+                          leading: CircleAvatar(backgroundColor: compte.couleur,
+                              child: Text(compte.nom.isNotEmpty ? compte.nom[0]
+                                  .toUpperCase() : '?',
+                                  style: const TextStyle(color: Colors.white))),
+                          title: Text(compte.nom, style: theme.textTheme
+                              .titleMedium),
+                          trailing: Text(
+                            '${compte.solde.toStringAsFixed(2)} \$',
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                                color: compte.solde == 0 ? theme.colorScheme
+                                    .onSurface : (compte.solde > 0 ? Colors
+                                    .greenAccent[400] : Colors.redAccent)),
+                          ),
+                          onTap: () {
+                            print('Compte d\'investissement ${compte
+                                .nom} cliqué (ID: ${compte.id})');
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                const SizedBox(height: 24.0),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24.0),
         ],
       ),
-
-      //     // TODO: Naviguer vers un écran de création de compte
-
     );
   }
 }
