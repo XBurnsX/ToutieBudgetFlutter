@@ -44,41 +44,32 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
   final List<String> _listeEnveloppes = ['Nourriture', 'Transport', 'Loisirs', 'Factures']; // À remplacer par une gestion dynamique plus tard
   final List<String> _listeMarqueurs = ['Aucun', 'Important', 'À vérifier'];
 
+  List<String> _listeTiersConnus = [];
   @override
   void initState() {
     super.initState();
     print("--- ECRAN INIT STATE ---");
 
-    // --- Initialisation de _listeComptesAffichables ---
-    // OPTION 1: Si les comptes sont passés via le constructeur
     _listeComptesAffichables = List<String>.from(widget.comptesExistants)
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-    // OPTION 2: Si vous utilisez un Provider (à faire dans didChangeDependencies ou avec Consumer)
-    // (Voir exemple précédent pour didChangeDependencies)
-    // Si la liste des comptes est vide initialement et chargée plus tard,
-    // assurez-vous que le Dropdown gère correctement un état de chargement ou une liste vide.
+    _chargerTiersConnus(); // AJOUT: Appel pour charger les tiers
 
-    _montantController.addListener(() {});
-    _montantFocusNode.addListener(() {
-      if (_montantFocusNode.hasFocus && _montantController.text == '0.00') {
-        _montantController.selection = TextSelection(baseOffset: 0, extentOffset: _montantController.text.length);
-      }
+    // ... (reste de votre initState)
+  }
+
+  // AJOUT: Nouvelle méthode pour charger/définir les tiers connus
+  Future<void> _chargerTiersConnus() async {
+    // Pour l'instant, utilisons une liste statique.
+    // Plus tard, vous pourrez la charger depuis une base de données ou un service.
+    setState(() {
+      _listeTiersConnus = [
+        "Katherine",
+      ];
+      _listeTiersConnus.sort((a,b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      print("_listeTiersConnus initialisée: $_listeTiersConnus");
     });
   }
-
-  // (Si vous utilisez Provider et voulez récupérer les comptes dans didChangeDependencies)
-  /*
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // OPTION 2 - Exemple avec Provider:
-    // final compteProvider = Provider.of<CompteProvider>(context, listen: false); // listen: false si seulement à l'init
-    // _listeComptesAffichables = compteProvider.nomsDesComptesReels
-    //   ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    // print("Comptes chargés depuis Provider: $_listeComptesAffichables");
-  }
-  */
 
   @override
   void dispose() {
@@ -260,7 +251,7 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
             // --- CHAMP TYPE MOUVEMENT (onChanged simplifié) ---
             _buildChampDetail(
               icone: Icons.compare_arrows,
-              libelle: 'Type Mouvement',
+              libelle: 'Transaction',
               widgetContenu: DropdownButtonFormField<TypeMouvementFinancier>(
                 value: _typeMouvementSelectionne,
                 items: TypeMouvementFinancier.values.map((TypeMouvementFinancier type) {
@@ -294,26 +285,118 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
               ),
             ),
             _buildSeparateurDansCarte(),
-
-            // --- CHAMP TIERS / PRÊTEUR (Anciennement "Payé à / Reçu de") ---
             _buildChampDetail(
-              icone: Icons.person_outline, // ou Icons.handshake_outlined pour prêteur
-              libelle: _typeMouvementSelectionne == TypeMouvementFinancier.detteContractee ? 'Prêteur (Optionnel)' : 'Tiers',
-              widgetContenu: TextField(
-                controller: _payeController,
-                decoration: InputDecoration(
-                  hintText: _typeMouvementSelectionne == TypeMouvementFinancier.detteContractee ? 'Nom du prêteur' : 'Payé à / Reçu de',
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0),
-                ),
-                // Vous pouvez ajouter ici une logique d'autocomplétion si vous le souhaitez
+              icone: Icons.person_outline,
+              libelle: _typeMouvementSelectionne == TypeMouvementFinancier.detteContractee ? 'Prêteur' : 'Tiers',
+              widgetContenu: Autocomplete<String>(
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  final String texteSaisi = textEditingValue.text;
+
+                  if (textEditingValue.text.isEmpty) {
+                    return _listeTiersConnus;
+                  }
+
+                  final suggestionsStandard = _listeTiersConnus.where((String option) {
+                    return option.toLowerCase().contains(texteSaisi.toLowerCase());
+                  });
+
+                  // Vérifier si le texte saisi existe déjà exactement (insensible à la casse) dans la liste
+                  bool existeDeja = _listeTiersConnus.any((String option) => option.toLowerCase() == texteSaisi.toLowerCase());
+
+                  // Si le texte saisi n'est pas vide ET n'existe pas déjà, ajouter l'option "Ajouter : ..."
+                  if (texteSaisi.isNotEmpty && !existeDeja) {
+                    // Crée une nouvelle liste modifiable à partir des suggestions et ajoute l'option "Ajouter"
+                    // On met l'option "Ajouter" en premier pour plus de visibilité, ou en dernier selon la préférence.
+                    return <String>['Ajouter : $texteSaisi', ...suggestionsStandard];
+                  } else {
+                    // Sinon, retourner seulement les suggestions standard
+                    return suggestionsStandard;
+                  }
+                },
+                fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController,
+                    FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
+                  // Synchronisation avec _payeController
+                  if (_payeController.text.isNotEmpty && fieldTextEditingController.text != _payeController.text) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) fieldTextEditingController.text = _payeController.text;
+                    });
+                  }
+                  fieldTextEditingController.addListener(() {
+                    if (mounted && _payeController.text != fieldTextEditingController.text) {
+                      _payeController.text = fieldTextEditingController.text;
+                    }
+                  });
+
+                  return TextField(
+                    controller: fieldTextEditingController,
+                    focusNode: fieldFocusNode,
+                    decoration: InputDecoration(
+                      hintText: _typeMouvementSelectionne == TypeMouvementFinancier.detteContractee
+                          ? 'Nom du prêteur'
+                          : 'Payé à / Reçu de',
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0),
+                    ),
+                    onSubmitted: (_) => onFieldSubmitted(),
+                  );
+                },
+    onSelected: (String selection) {
+    final String prefixeAjout = "Ajouter : ";
+    if (selection.startsWith(prefixeAjout)) {
+    // C'est une demande d'ajout
+    final String nomAAjouter = selection.substring(prefixeAjout.length);
+    print('ACTION: Ajouter un nouveau tiers "$nomAAjouter"');
+
+    _payeController.text = nomAAjouter;
+
+    if (!_listeTiersConnus.any((t) => t.toLowerCase() == nomAAjouter.toLowerCase())) {
+    setState(() {
+    _listeTiersConnus.add(nomAAjouter);
+    _listeTiersConnus.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    print("_listeTiersConnus mise à jour avec le nouveau tiers: $_listeTiersConnus");
+    });
+    }
+    } else {
+
+    _payeController.text = selection;
+    }
+
+    setState(() {});
+
+
+    FocusScope.of(context).unfocus();
+    },
+                // Optionnel: Personnaliser l'apparence des options
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4.0,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 200), // Limite la hauteur de la liste
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemCount: options.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final String option = options.elementAt(index);
+                            return InkWell(
+                              onTap: () => onSelected(option),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Text(option),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
             _buildSeparateurDansCarte(),
 
-            // --- CHAMP COMPTE (Doit TOUJOURS être visible) ---
-            // IL NE DOIT PLUS Y AVOIR DE "if (_typeMouvementSelectionne != TypeMouvementFinancier.detteContractee)" ICI
             _buildChampDetail(
               icone: Icons.account_balance_wallet_outlined,
               // Le libellé peut changer dynamiquement
