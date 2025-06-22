@@ -24,15 +24,7 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
   final FocusNode _montantFocusNode = FocusNode();
 
   final TextEditingController _payeController = TextEditingController();
-  final List<String> _payesConnus = [
-    'Epicerie Max',
-    'Pharmacie Jean Coutu',
-    'Shell',
-    'Salaire Inc.',
-    'Loyer'
-  ]; // Exemple étendu
-  // FocusNode pour le champ Autocomplete lui-même, géré par Autocomplete
-  // final FocusNode _autocompleteFocusNode = FocusNode(); // Pas besoin de le définir ici si on utilise celui de fieldViewBuilder
+  final List<String> _payesConnus = [];
 
   String? _enveloppeSelectionnee;
   String? _compteSelectionne;
@@ -285,33 +277,72 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
 
                   return suggestions;
                 },
+                // Dans _buildSectionInformationsCles() -> _buildChampDetail pour 'Provenance' -> Autocomplete
                 onSelected: (String selection) {
                   print(
                       '>>> Autocomplete: onSelected appelé avec: "$selection"');
-                  setState(() { // setState pour reconstruire si _payeController change affecte autre chose
-                    _payeController.text = selection;
-                  });
+                  final String trimmedSelection = selection.trim();
+                  bool isNewPayee = trimmedSelection.isNotEmpty &&
+                      !_payesConnus.any((p) =>
+                      p.toLowerCase() == trimmedSelection.toLowerCase());
+
+                  if (isNewPayee) {
+                    print(
+                        '>>> Autocomplete: onSelected - "$trimmedSelection" est un nouveau payé. Ajout à _payesConnus.');
+                    setState(() {
+                      _payesConnus.add(
+                          trimmedSelection); // AJOUT IMMÉDIAT À LA LISTE
+                      _payesConnus.sort((a, b) =>
+                          a.toLowerCase().compareTo(b
+                              .toLowerCase())); // Optionnel: garder la liste triée
+                      // _savePayesConnus(); // Si vous aviez une méthode pour sauvegarder en persistance
+                      _payeController.text =
+                          trimmedSelection; // Mettre à jour le contrôleur principal
+                    });
+                    print(
+                        '_payesConnus après ajout par onSelected: $_payesConnus');
+                  } else {
+                    // C'est une sélection existante ou le champ est vidé (si selection est vide)
+                    // ou la valeur est déjà connue (même si tapée manuellement et sélectionnée)
+                    setState(() {
+                      _payeController.text =
+                          trimmedSelection; // Mettre à jour le contrôleur principal
+                    });
+                  }
                   print(
                       '>>> Autocomplete: onSelected - _payeController.text mis à jour à: "${_payeController
                           .text}"');
                 },
+                // Dans _buildSectionInformationsCles() -> _buildChampDetail pour 'Provenance' -> Autocomplete
                 fieldViewBuilder: (BuildContext context,
                     TextEditingController fieldTextEditingController,
-                    // Contrôleur interne d'Autocomplete
+                    // Contrôleur interne
                     FocusNode fieldFocusNode,
                     VoidCallback onFieldSubmitted) {
                   print(
                       ">>> Autocomplete: fieldViewBuilder construit. fieldTextEditingController.text: '${fieldTextEditingController
-                          .text}', fieldFocusNode.hasFocus: ${fieldFocusNode
-                          .hasFocus}");
+                          .text}', _payeController.text: '${_payeController
+                          .text}'");
 
-                  // Synchronisation initiale si _payeController a une valeur (ex: chargement d'une transaction)
-                  // WidgetsBinding.instance.addPostFrameCallback((_) {
-                  //   if (_payeController.text.isNotEmpty && fieldTextEditingController.text != _payeController.text) {
-                  //      print(">>> fieldViewBuilder postFrameCallback: Synchronisation de fieldTextEditingController avec _payeController.text: ${_payeController.text}");
-                  //     fieldTextEditingController.text = _payeController.text;
-                  //   }
-                  // });
+                  // Synchronisation de _payeController vers fieldTextEditingController
+                  // Si onSelected a mis à jour _payeController et déclenché un setState,
+                  // le fieldTextEditingController interne doit refléter ce changement.
+                  if (fieldTextEditingController.text != _payeController.text) {
+                    // Utiliser addPostFrameCallback pour éviter les erreurs de build si onSelected vient de setState
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      // Vérifier si le widget est toujours monté avant d'accéder au contrôleur
+                      if (mounted && fieldTextEditingController.text !=
+                          _payeController.text) {
+                        fieldTextEditingController.text = _payeController.text;
+                        // Placer le curseur à la fin après la mise à jour
+                        fieldTextEditingController.selection =
+                            TextSelection.fromPosition(
+                                TextPosition(
+                                    offset: fieldTextEditingController.text
+                                        .length));
+                      }
+                    });
+                  }
 
                   fieldFocusNode.addListener(() {
                     print(
@@ -320,48 +351,74 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
                             .text}'");
                     if (fieldFocusNode.hasFocus &&
                         fieldTextEditingController.text.isEmpty) {
-                      // On s'attend à ce que Autocomplete appelle optionsBuilder et ouvre la liste
-                      // car optionsBuilder retourne maintenant _payesConnus.
                       print(
                           ">>> Autocomplete fieldFocusNode Listener: A LE FOCUS & TEXTE VIDE. optionsBuilder devrait être appelé.");
                     }
                   });
 
                   return TextField(
-                      controller: fieldTextEditingController,
-                      focusNode: fieldFocusNode,
-                      decoration: InputDecoration(
-                        hintText: 'Payé à / Reçu de',
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            vertical: 12.0, horizontal: 10.0),
-                      ),
-                      onTap: () {
-                        print(
-                            ">>> Autocomplete fieldViewBuilder TextField TAPPED! fieldTextEditingController.text: '${fieldTextEditingController
-                                .text}'");
-                        // Si le texte est vide au tap, on veut que la liste s'ouvre.
-                        // Autocomplete devrait le faire si optionsBuilder retourne des options.
-                      },
-                      onChanged: (text) {
-                        print(
-                            '>>> Autocomplete fieldViewBuilder onChanged: text = "$text"');
-                        // Mettre à jour _payeController pour que la logique "Ajouter..." ait la valeur actuelle.
-                        _payeController.value = TextEditingValue(
-                          text: text,
-                          selection: TextSelection.collapsed(offset: text
-                              .length),
-                        );
-                        print(
-                            '>>> Autocomplete fieldViewBuilder onChanged: _payeController mis à jour à: "${_payeController
-                                .text}"');
-                      },
-                      onSubmitted: (value) {
-                        print(
-                            '>>> Autocomplete fieldViewBuilder onSubmitted: value = "$value"');
-                        onFieldSubmitted(); // Important pour que Autocomplete puisse gérer la soumission
+                    controller: fieldTextEditingController,
+                    // Utilise le contrôleur interne fourni
+                    focusNode: fieldFocusNode,
+                    decoration: InputDecoration(
+                      hintText: 'Payé à / Reçu de',
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding:
+                      const EdgeInsets.symmetric(
+                          vertical: 12.0, horizontal: 10.0),
+                    ),
+                    onTap: () {
+                      print(
+                          ">>> Autocomplete fieldViewBuilder TextField TAPPED! fieldTextEditingController.text: '${fieldTextEditingController
+                              .text}'");
+                    },
+                    onChanged: (text) {
+                      print(
+                          '>>> Autocomplete fieldViewBuilder onChanged: text = "$text"');
+                      // Mettre à jour _payeController pour que la logique "Ajouter..." dans optionsViewBuilder ait la valeur actuelle.
+                      // Important: NE PAS appeler setState() ici directement car Autocomplete
+                      // va se reconstruire et rappeler optionsBuilder de toute façon.
+                      _payeController.value = TextEditingValue(
+                        text: text,
+                        selection: TextSelection.collapsed(offset: text.length),
+                      );
+                      // Autocomplete s'occupe de rappeler optionsBuilder.
+                      print(
+                          '>>> Autocomplete fieldViewBuilder onChanged: _payeController mis à jour à: "${_payeController
+                              .text}"');
+                    },
+                    onSubmitted: (value) {
+                      print(
+                          '>>> Autocomplete fieldViewBuilder onSubmitted: value = "$value"');
+                      final String submittedValue = value.trim();
+
+                      if (submittedValue.isNotEmpty) {
+                        // Logique similaire à onSelected: si c'est une nouvelle valeur, on l'ajoute.
+                        // Puis on appelle onFieldSubmitted pour que Autocomplete ferme la liste des options.
+                        bool isNewPayee = !_payesConnus.any((p) =>
+                        p.toLowerCase() == submittedValue.toLowerCase());
+                        if (isNewPayee) {
+                          print(
+                              '>>> Autocomplete onSubmitted: "$submittedValue" est un nouveau payé. Ajout à _payesConnus.');
+                          setState(() {
+                            _payesConnus.add(submittedValue);
+                            _payesConnus.sort((a, b) =>
+                                a.toLowerCase().compareTo(b.toLowerCase()));
+                            // _savePayesConnus();
+                            _payeController.text =
+                                submittedValue; // Met à jour le contrôleur principal
+                            // La synchronisation dans fieldViewBuilder mettra à jour fieldTextEditingController si nécessaire
+                          });
+                        } else {
+                          // C'est une valeur existante, s'assurer que _payeController est bien à jour
+                          setState(() { // setState pour s'assurer que si l'utilisateur a juste soumis une valeur existante, elle est bien dans _payeController
+                            _payeController.text = submittedValue;
+                          });
+                        }
                       }
+                      onFieldSubmitted(); // Crucial pour que Autocomplete gère la soumission (ferme les options etc.)
+                    },
                   );
                 },
                 optionsViewBuilder: (BuildContext context,
@@ -685,6 +742,7 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
             const SizedBox(height: 8),
             _buildSectionOptionsAdditionnelles(),
             const SizedBox(height: 30),
+            // Dans la méthode build() -> ElevatedButton(onPressed: ...)
             ElevatedButton(
               onPressed: () {
                 print('--- BOUTON SAUVEGARDER PRESSÉ ---');
@@ -697,28 +755,6 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
                 print('Date: $_dateSelectionnee');
                 print('Marqueur: $_marqueurSelectionne');
                 print('Note: ${_noteController.text}');
-
-                // Logique pour ajouter à _payesConnus si c'est une nouvelle entrée et sélectionnée via "Ajouter..."
-                // Cela est géré implicitement par le onSelected qui met à jour _payeController.
-                // Si l'utilisateur a tapé "Nouveau Payé" et cliqué sur "Ajouter Nouveau Payé",
-                // alors _payeController.text sera "Nouveau Payé".
-                // Il faut s'assurer que _payesConnus est réellement mis à jour AVANT la sauvegarde si nécessaire.
-
-                final String finalPayeValue = _payeController.text.trim();
-                if (finalPayeValue.isNotEmpty &&
-                    !_payesConnus.any((p) =>
-                    p.toLowerCase() ==
-                        finalPayeValue.toLowerCase())) {
-                  print(
-                      'Sauvegarde: "$finalPayeValue" est un nouveau payé, ajout à _payesConnus.');
-                  setState(() { // setState pour que la liste soit à jour pour la prochaine fois
-                    _payesConnus.add(finalPayeValue);
-                    // _savePayesConnus(); // Sauvegarder si la persistance est active
-                  });
-                  print(
-                      '_payesConnus après ajout par sauvegarde: $_payesConnus');
-                }
-
 
                 if (Navigator.canPop(context)) {
                   Navigator.pop(context);
