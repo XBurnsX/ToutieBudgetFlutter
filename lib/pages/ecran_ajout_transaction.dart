@@ -10,6 +10,46 @@ enum TypeMouvementFinancier {
   detteContractee, // Argent qui rentre (vous empruntez)
   remboursementEffectue, // Argent qui sort (vous remboursez une dette)
 }
+// Vous pouvez placer ceci dans votre classe _EcranAjoutTransactionState
+// ou même en dehors si c'est plus propre (par exemple, près de la définition de l'enum)
+
+bool estUneDepense(TypeMouvementFinancier typeMouvement) {
+  return typeMouvement == TypeMouvementFinancier.depenseNormale ||
+      typeMouvement == TypeMouvementFinancier.pretAccorde ||
+      typeMouvement == TypeMouvementFinancier.remboursementEffectue;
+}
+
+bool estUnRevenu(TypeMouvementFinancier typeMouvement) {
+  return typeMouvement == TypeMouvementFinancier.revenuNormal ||
+      typeMouvement == TypeMouvementFinancier.remboursementRecu ||
+      typeMouvement == TypeMouvementFinancier.detteContractee;
+}
+
+// Alternative avec une extension (plus élégant à mon avis)
+// Placez ceci en dehors de la classe, au niveau du fichier, après les imports.
+extension TypeMouvementFinancierExtension on TypeMouvementFinancier {
+  bool get estDepense {
+    switch (this) {
+      case TypeMouvementFinancier.depenseNormale:
+      case TypeMouvementFinancier.pretAccorde:
+      case TypeMouvementFinancier.remboursementEffectue:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool get estRevenu {
+    switch (this) {
+      case TypeMouvementFinancier.revenuNormal:
+      case TypeMouvementFinancier.remboursementRecu:
+      case TypeMouvementFinancier.detteContractee:
+        return true;
+      default:
+        return false;
+    }
+  }
+}
 class EcranAjoutTransaction extends StatefulWidget {
   const EcranAjoutTransaction({super.key});
 
@@ -131,13 +171,26 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
         onTap: () {
           setState(() {
             _typeSelectionne = type;
+            // Synchronisation vers _typeMouvementSelectionne
+            if (type == TypeTransaction.depense) {
+              // Si le type de mouvement actuel n'est pas déjà une dépense, on le met par défaut
+              // Sinon, on le laisse tel quel (ex: si c'était "Prêt accordé", on ne veut pas le changer en "Dépense normale")
+              if (!estUneDepense(_typeMouvementSelectionne)) { // Ou !_typeMouvementSelectionne.estDepense avec l'extension
+                _typeMouvementSelectionne = TypeMouvementFinancier.depenseNormale;
+              }
+            } else { // TypeTransaction.revenu
+              // Si le type de mouvement actuel n'est pas déjà un revenu, on le met par défaut
+              if (!estUnRevenu(_typeMouvementSelectionne)) { // Ou !_typeMouvementSelectionne.estRevenu avec l'extension
+                _typeMouvementSelectionne = TypeMouvementFinancier.revenuNormal;
+              }
+            }
+            print("Sélecteur D/R changé: _typeSelectionne: $_typeSelectionne, _typeMouvementSelectionne: $_typeMouvementSelectionne");
           });
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
           decoration: BoxDecoration(
-            color: estSelectionne ? selectedBackgroundColor : Colors
-                .transparent,
+            color: estSelectionne ? selectedBackgroundColor : Colors.transparent,
             borderRadius: BorderRadius.circular(25.0),
           ),
           child: Text(
@@ -228,7 +281,15 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
                   if (newValue != null) {
                     setState(() {
                       _typeMouvementSelectionne = newValue;
-                      print("Type Mouvement sélectionné: $newValue");
+                      // Synchronisation vers _typeSelectionne
+                      if (estUneDepense(newValue)) { // Ou newValue.estDepense avec l'extension
+                        _typeSelectionne = TypeTransaction.depense;
+                      } else if (estUnRevenu(newValue)) { // Ou newValue.estRevenu avec l'extension
+                        _typeSelectionne = TypeTransaction.revenu;
+                      }
+                      // Si ce n'est ni l'un ni l'autre (ne devrait pas arriver avec votre enum actuel),
+                      // _typeSelectionne reste inchangé, ou vous pourriez définir une logique par défaut.
+                      print("Dropdown Type Mouvement changé: _typeMouvementSelectionne: $_typeMouvementSelectionne, _typeSelectionne: $_typeSelectionne");
                     });
                   }
                 },
