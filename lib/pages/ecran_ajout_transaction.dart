@@ -1,124 +1,85 @@
-// lib/pages/ecran_ajout_transaction.dart
 import 'package:flutter/material.dart';
-// import 'package:shared_preferences/shared_preferences.dart'; // Décommentez pour la persistance
-enum TypeTransaction { depense, revenu }
-enum TypeMouvementFinancier {
-  depenseNormale,
-  revenuNormal,
-  pretAccorde, // Argent qui sort (vous prêtez)
-  remboursementRecu, // Argent qui rentre (on vous rembourse un prêt)
-  detteContractee, // Argent qui rentre (vous empruntez)
-  remboursementEffectue, // Argent qui sort (vous remboursez une dette)
-}
-// Vous pouvez placer ceci dans votre classe _EcranAjoutTransactionState
-// ou même en dehors si c'est plus propre (par exemple, près de la définition de l'enum)
+import '../models/transaction_model.dart'; // Assurez-vous que ce chemin est correct
 
-bool estUneDepense(TypeMouvementFinancier typeMouvement) {
-  return typeMouvement == TypeMouvementFinancier.depenseNormale ||
-      typeMouvement == TypeMouvementFinancier.pretAccorde ||
-      typeMouvement == TypeMouvementFinancier.remboursementEffectue;
-}
+// (Si vous utilisez un Provider ou autre pour les comptes, importez-le ici)
+// import 'package:provider/provider.dart';
+// import '../providers/compte_provider.dart'; // Exemple
 
-bool estUnRevenu(TypeMouvementFinancier typeMouvement) {
-  return typeMouvement == TypeMouvementFinancier.revenuNormal ||
-      typeMouvement == TypeMouvementFinancier.remboursementRecu ||
-      typeMouvement == TypeMouvementFinancier.detteContractee;
-}
-
-// Alternative avec une extension (plus élégant à mon avis)
-// Placez ceci en dehors de la classe, au niveau du fichier, après les imports.
-extension TypeMouvementFinancierExtension on TypeMouvementFinancier {
-  bool get estDepense {
-    switch (this) {
-      case TypeMouvementFinancier.depenseNormale:
-      case TypeMouvementFinancier.pretAccorde:
-      case TypeMouvementFinancier.remboursementEffectue:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  bool get estRevenu {
-    switch (this) {
-      case TypeMouvementFinancier.revenuNormal:
-      case TypeMouvementFinancier.remboursementRecu:
-      case TypeMouvementFinancier.detteContractee:
-        return true;
-      default:
-        return false;
-    }
-  }
-}
 class EcranAjoutTransaction extends StatefulWidget {
-  const EcranAjoutTransaction({super.key});
+  // OPTION 1: Passer les comptes via le constructeur
+  final List<String> comptesExistants; // Liste des noms de comptes réels
+
+  const EcranAjoutTransaction({
+    super.key,
+    required this.comptesExistants, // Requis si vous utilisez l'option 1
+  });
+
+  // OPTION 2: Si vous n'utilisez pas l'option 1 (par ex. avec Provider)
+  // const EcranAjoutTransaction({super.key});
 
   @override
   State<EcranAjoutTransaction> createState() => _EcranAjoutTransactionState();
 }
 
 class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
+  // --- Variables d'état ---
   TypeTransaction _typeSelectionne = TypeTransaction.depense;
-  final TextEditingController _montantController = TextEditingController(
-      text: '0.00');
+  final TextEditingController _montantController = TextEditingController(text: '0.00');
   final FocusNode _montantFocusNode = FocusNode();
 
   final TextEditingController _payeController = TextEditingController();
-  final List<String> _payesConnus = [];
+  // final List<String> _payesConnus = []; // Gardez si vous avez une logique d'autocomplétion pour les tiers
 
-  String? _enveloppeSelectionnee;
-  String? _compteSelectionne;
+  String? _enveloppeSelectionnee; // Sera utilisé plus tard
+  String? _compteSelectionne;    // Le compte choisi dans le dropdown pour les transactions normales
   DateTime _dateSelectionnee = DateTime.now();
   String? _marqueurSelectionne;
   final TextEditingController _noteController = TextEditingController();
-  TypeMouvementFinancier _typeMouvementSelectionne = TypeMouvementFinancier
-      .depenseNormale; // Valeur par défaut
+  TypeMouvementFinancier _typeMouvementSelectionne = TypeMouvementFinancier.depenseNormale;
 
-  final List<String> _listeEnveloppes = [
-    'Nourriture',
-    'Transport',
-    'Loisirs',
-    'Factures'
-  ];
-  final List<String> _listeComptes = [
-    'Compte Courant',
-    'Épargne',
-    'Carte de Crédit'
-  ];
+  // Liste des comptes pour le Dropdown "Compte" (sera initialisée)
+  late List<String> _listeComptesAffichables;
+
+  // Listes pour les autres dropdowns (si elles sont toujours statiques ici)
+  final List<String> _listeEnveloppes = ['Nourriture', 'Transport', 'Loisirs', 'Factures']; // À remplacer par une gestion dynamique plus tard
   final List<String> _listeMarqueurs = ['Aucun', 'Important', 'À vérifier'];
 
   @override
   void initState() {
     super.initState();
     print("--- ECRAN INIT STATE ---");
-    // _loadPayesConnus();
+
+    // --- Initialisation de _listeComptesAffichables ---
+    // OPTION 1: Si les comptes sont passés via le constructeur
+    _listeComptesAffichables = List<String>.from(widget.comptesExistants)
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    // OPTION 2: Si vous utilisez un Provider (à faire dans didChangeDependencies ou avec Consumer)
+    // (Voir exemple précédent pour didChangeDependencies)
+    // Si la liste des comptes est vide initialement et chargée plus tard,
+    // assurez-vous que le Dropdown gère correctement un état de chargement ou une liste vide.
 
     _montantController.addListener(() {});
     _montantFocusNode.addListener(() {
       if (_montantFocusNode.hasFocus && _montantController.text == '0.00') {
-        _montantController.selection = TextSelection(
-            baseOffset: 0, extentOffset: _montantController.text.length);
+        _montantController.selection = TextSelection(baseOffset: 0, extentOffset: _montantController.text.length);
       }
     });
   }
-  String _libellePourTypeMouvement(TypeMouvementFinancier type) {
-    switch (type) {
-      case TypeMouvementFinancier.depenseNormale:
-        return 'Dépense';
-      case TypeMouvementFinancier.revenuNormal:
-        return 'Revenu';
-      case TypeMouvementFinancier.pretAccorde:
-        return 'Prêt accordé (Sortie)';
-      case TypeMouvementFinancier.remboursementRecu:
-        return 'Remboursement reçu (Entrée)';
-      case TypeMouvementFinancier.detteContractee:
-        return 'Dette contractée (Entrée)';
-      case TypeMouvementFinancier.remboursementEffectue:
-        return 'Remboursement effectué (Sortie)';
-      default:
-        return ''; // Ne devrait pas arriver
-    }
+
+  // (Si vous utilisez Provider et voulez récupérer les comptes dans didChangeDependencies)
+  /*
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // OPTION 2 - Exemple avec Provider:
+    // final compteProvider = Provider.of<CompteProvider>(context, listen: false); // listen: false si seulement à l'init
+    // _listeComptesAffichables = compteProvider.nomsDesComptesReels
+    //   ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    // print("Comptes chargés depuis Provider: $_listeComptesAffichables");
   }
+  */
+
   @override
   void dispose() {
     print("--- ECRAN DISPOSE ---");
@@ -126,20 +87,81 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
     _montantFocusNode.dispose();
     _payeController.dispose();
     _noteController.dispose();
-    // _autocompleteFocusNode.dispose(); // Si vous l'aviez créé explicitement
     super.dispose();
   }
 
+  // --- Fonction _libellePourTypeMouvement (INCHANGÉE PAR RAPPORT À VOTRE VERSION PRÉCÉDENTE) ---
+  String _libellePourTypeMouvement(TypeMouvementFinancier type) {
+    switch (type) {
+      case TypeMouvementFinancier.depenseNormale: return 'Dépense';
+      case TypeMouvementFinancier.revenuNormal: return 'Revenu';
+      case TypeMouvementFinancier.pretAccorde: return 'Prêt accordé (Sortie)';
+      case TypeMouvementFinancier.remboursementRecu: return 'Remboursement reçu (Entrée)';
+      case TypeMouvementFinancier.detteContractee: return 'Dette contractée (Entrée)';
+      case TypeMouvementFinancier.remboursementEffectue: return 'Remboursement effectué (Sortie)';
+    // Ajoutez d'autres cas si nécessaire, en vous assurant qu'ils existent dans l'enum
+      default:
+      // Pour être sûr, retournez le nom de l'enum si non mappé, ou un texte d'erreur
+        print("AVERTISSEMENT: Libellé non trouvé pour TypeMouvementFinancier.$type");
+        return type.name; // Retourne le nom de l'enum (ex: 'investissement')
+    }
+  }
+
+  // --- NOUVELLE FONCTION _definirNomCompteDette ---
+  // (Placée ici, avant les méthodes _build... ou avant onPressed du bouton Sauvegarder)
+  Future<String?> _definirNomCompteDette(String nomPreteurInitial, double montantInitialTransaction) async {
+    String nomCompteDette = "Prêt Personnel";
+    String nomPreteur = nomPreteurInitial.trim();
+
+    if (nomPreteur.isNotEmpty) {
+      nomCompteDette += " : $nomPreteur";
+    } else {
+      if (!mounted) return null; // Vérification pour les opérations asynchrones
+      final bool? continuerSansNom = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext dialogContext) {
+          return AlertDialog(
+            title: const Text('Nom du prêteur non spécifié'),
+            content: const Text(
+                'Aucun nom de prêteur n\'a été spécifié. '
+                    'Voulez-vous nommer le compte de dette "Prêt Personnel Générique" ?'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Annuler'),
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+              ),
+              TextButton(
+                child: const Text('Utiliser "Prêt Personnel Générique"'),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (continuerSansNom == true) {
+        nomCompteDette = "Prêt Personnel Générique";
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Opération de dette annulée : nom du prêteur requis ou générique refusé.')),
+          );
+        }
+        return null;
+      }
+    }
+    print('Nom du compte de dette déterminé : $nomCompteDette');
+    return nomCompteDette;
+  }
+
+  // --- Méthodes _build... ---
+  // _buildSelecteurTypeTransaction() - (INCHANGÉE PAR RAPPORT À VOTRE VERSION PRÉCÉDENTE)
   Widget _buildSelecteurTypeTransaction() {
-    final bool isDark = Theme
-        .of(context)
-        .brightness == Brightness.dark;
-    final Color selectorBackgroundColor = isDark ? Colors.grey[800]! : Colors
-        .grey[300]!;
-    final Color selectedOptionColor = isDark ? Colors.black54 : Colors
-        .blueGrey[700]!;
-    final Color unselectedTextColor = isDark ? Colors.grey[400]! : Colors
-        .grey[600]!;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color selectorBackgroundColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+    final Color selectedOptionColor = isDark ? Colors.black54 : Colors.blueGrey[700]!;
+    final Color unselectedTextColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
     final Color selectedTextColor = Colors.white;
 
     return Container(
@@ -151,36 +173,27 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          _buildOptionType(
-              TypeTransaction.depense, '- Dépense', selectedOptionColor,
-              selectedTextColor, unselectedTextColor),
-          _buildOptionType(
-              TypeTransaction.revenu, '+ Revenu', selectedOptionColor,
-              selectedTextColor, unselectedTextColor),
+          _buildOptionType(TypeTransaction.depense, '- Dépense', selectedOptionColor, selectedTextColor, unselectedTextColor),
+          _buildOptionType(TypeTransaction.revenu, '+ Revenu', selectedOptionColor, selectedTextColor, unselectedTextColor),
         ],
       ),
     );
   }
 
-  Widget _buildOptionType(TypeTransaction type, String libelle,
-      Color selectedBackgroundColor, Color selectedTextColor,
-      Color unselectedTextColor) {
+  // _buildOptionType() - (INCHANGÉE, ASSUREZ-VOUS D'UTILISER .estDepense/.estRevenu)
+  Widget _buildOptionType(TypeTransaction type, String libelle, Color selectedBackgroundColor, Color selectedTextColor, Color unselectedTextColor) {
     final estSelectionne = _typeSelectionne == type;
     return Expanded(
       child: GestureDetector(
         onTap: () {
           setState(() {
             _typeSelectionne = type;
-            // Synchronisation vers _typeMouvementSelectionne
             if (type == TypeTransaction.depense) {
-              // Si le type de mouvement actuel n'est pas déjà une dépense, on le met par défaut
-              // Sinon, on le laisse tel quel (ex: si c'était "Prêt accordé", on ne veut pas le changer en "Dépense normale")
-              if (!estUneDepense(_typeMouvementSelectionne)) { // Ou !_typeMouvementSelectionne.estDepense avec l'extension
+              if (!_typeMouvementSelectionne.estDepense) {
                 _typeMouvementSelectionne = TypeMouvementFinancier.depenseNormale;
               }
             } else { // TypeTransaction.revenu
-              // Si le type de mouvement actuel n'est pas déjà un revenu, on le met par défaut
-              if (!estUnRevenu(_typeMouvementSelectionne)) { // Ou !_typeMouvementSelectionne.estRevenu avec l'extension
+              if (!_typeMouvementSelectionne.estRevenu) {
                 _typeMouvementSelectionne = TypeMouvementFinancier.revenuNormal;
               }
             }
@@ -206,57 +219,36 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
     );
   }
 
+  // _buildChampMontant() - (INCHANGÉE PAR RAPPORT À VOTRE VERSION PRÉCÉDENTE)
   Widget _buildChampMontant() {
     final Color couleurMontant = _typeSelectionne == TypeTransaction.depense
-        ? (Theme
-        .of(context)
-        .colorScheme
-        .error)
+        ? (Theme.of(context).colorScheme.error)
         : Colors.greenAccent[700] ?? Colors.green;
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 30.0),
       child: TextField(
         controller: _montantController,
         focusNode: _montantFocusNode,
         textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 48,
-          fontWeight: FontWeight.bold,
-          color: couleurMontant,
-        ),
-        keyboardType: const TextInputType.numberWithOptions(
-            decimal: true, signed: false),
+        style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: couleurMontant),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: false),
         decoration: InputDecoration(
             border: InputBorder.none,
             hintText: '0.00',
             hintStyle: TextStyle(color: Colors.grey[600])),
         onTap: () {
           if (_montantController.text == '0.00') {
-            _montantController.selection = TextSelection(
-                baseOffset: 0, extentOffset: _montantController.text.length);
+            _montantController.selection = TextSelection(baseOffset: 0, extentOffset: _montantController.text.length);
           }
         },
       ),
     );
   }
 
+  // _buildSectionInformationsCles() - (MODIFIÉE pour le Dropdown des comptes et le onChanged du Type Mouvement)
   Widget _buildSectionInformationsCles() {
-    final cardColor = Theme
-        .of(context)
-        .cardTheme
-        .color ?? (Theme
-        .of(context)
-        .brightness == Brightness.dark ? Colors.grey[850]! : Colors.white);
-    final cardShape = Theme
-        .of(context)
-        .cardTheme
-        .shape ?? RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12.0),
-    );
-    print(
-        "--- _buildSectionInformationsCles RECONSTRUIT --- _payeController.text: ${_payeController
-            .text}");
+    final cardColor = Theme.of(context).cardTheme.color ?? (Theme.of(context).brightness == Brightness.dark ? Colors.grey[850]! : Colors.white);
+    final cardShape = Theme.of(context).cardTheme.shape ?? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0));
 
     return Card(
       color: cardColor,
@@ -265,9 +257,9 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Column(
           children: <Widget>[
-            // ===== DÉBUT DU CODE COLLÉ =====
+            // --- CHAMP TYPE MOUVEMENT (onChanged simplifié) ---
             _buildChampDetail(
-              icone: Icons.compare_arrows, // Ou une autre icône pertinente
+              icone: Icons.compare_arrows,
               libelle: 'Type Mouvement',
               widgetContenu: DropdownButtonFormField<TypeMouvementFinancier>(
                 value: _typeMouvementSelectionne,
@@ -277,19 +269,18 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
                     child: Text(_libellePourTypeMouvement(type), style: Theme.of(context).textTheme.bodyMedium),
                   );
                 }).toList(),
-                onChanged: (TypeMouvementFinancier? newValue) {
+                onChanged: (TypeMouvementFinancier? newValue) { // CHANGEMENT ICI
                   if (newValue != null) {
                     setState(() {
                       _typeMouvementSelectionne = newValue;
-                      // Synchronisation vers _typeSelectionne
-                      if (estUneDepense(newValue)) { // Ou newValue.estDepense avec l'extension
+                      if (newValue.estDepense) {
                         _typeSelectionne = TypeTransaction.depense;
-                      } else if (estUnRevenu(newValue)) { // Ou newValue.estRevenu avec l'extension
+                      } else if (newValue.estRevenu) {
                         _typeSelectionne = TypeTransaction.revenu;
                       }
-                      // Si ce n'est ni l'un ni l'autre (ne devrait pas arriver avec votre enum actuel),
-                      // _typeSelectionne reste inchangé, ou vous pourriez définir une logique par défaut.
-                      print("Dropdown Type Mouvement changé: _typeMouvementSelectionne: $_typeMouvementSelectionne, _typeSelectionne: $_typeSelectionne");
+                      if (newValue != TypeMouvementFinancier.detteContractee && _compteSelectionne != null && _compteSelectionne!.startsWith("Prêt Personnel")) {
+                      }
+                      print("Dropdown Type Mouvement changé: $_typeMouvementSelectionne, _typeSelectionne: $_typeSelectionne");
                     });
                   }
                 },
@@ -303,309 +294,136 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
               ),
             ),
             _buildSeparateurDansCarte(),
-            // ===== FIN DU CODE COLLÉ =====
 
-            // VOTRE ANCIEN PREMIER CHAMP (Provenance) EST MAINTENANT LE DEUXIÈME
+            // --- CHAMP TIERS / PRÊTEUR (Anciennement "Payé à / Reçu de") ---
             _buildChampDetail(
-              icone: Icons.swap_horiz,
-              libelle: 'Provenance',
-              widgetContenu: Autocomplete<String>(
-                optionsBuilder: (TextEditingValue textEditingValue) {
-                  print('>>> Autocomplete: optionsBuilder appelé avec texte: "${textEditingValue.text}"');
-                  final String query = textEditingValue.text;
-
-                  if (query.isEmpty) {
-                    print('>>> Autocomplete: optionsBuilder - Texte vide, retourne TOUS les _payesConnus: $_payesConnus');
-                    return _payesConnus;
-                  }
-
-                  final suggestions = _payesConnus.where((String option) {
-                    return option.toLowerCase().contains(query.toLowerCase());
-                  }).toList(); // Convertir en liste ici
-
-                  print('>>> Autocomplete: optionsBuilder - Suggestions filtrées trouvées: ${suggestions.toList()} pour "$query"');
-
-                  // SI AUCUNE SUGGESTION TROUVÉE ET QUE LE CHAMP N'EST PAS VIDE,
-                  // ON VEUT QUAND MÊME AFFICHER L'OPTION "AJOUTER..."
-                  if (suggestions.isEmpty && query.isNotEmpty) {
-                    print('>>> Autocomplete: optionsBuilder - Aucune suggestion pour "$query", mais query non vide. Retourne une liste avec la query elle-même pour forcer optionsViewBuilder.');
-                    // Retourner une liste contenant la query actuelle (ou une valeur sentinelle)
-                    // pour que Autocomplete appelle optionsViewBuilder.
-                    // Cette valeur sera ignorée ou gérée dans optionsViewBuilder si besoin,
-                    // car notre logique "Ajouter..." se base sur _payeController.text.
-                    return <String>[query]; // Ou une chaîne spéciale comme "_ADD_NEW_" si vous préférez la filtrer explicitement
-                  }
-
-                  return suggestions;
-                },
-                // Dans _buildSectionInformationsCles() -> _buildChampDetail pour 'Provenance' -> Autocomplete
-                onSelected: (String selection) {
-                  print(
-                      '>>> Autocomplete: onSelected appelé avec: "$selection"');
-                  final String trimmedSelection = selection.trim();
-                  bool isNewPayee = trimmedSelection.isNotEmpty &&
-                      !_payesConnus.any((p) =>
-                      p.toLowerCase() == trimmedSelection.toLowerCase());
-
-                  if (isNewPayee) {
-                    print(
-                        '>>> Autocomplete: onSelected - "$trimmedSelection" est un nouveau payé. Ajout à _payesConnus.');
-                    setState(() {
-                      _payesConnus.add(
-                          trimmedSelection); // AJOUT IMMÉDIAT À LA LISTE
-                      _payesConnus.sort((a, b) =>
-                          a.toLowerCase().compareTo(b
-                              .toLowerCase())); // Optionnel: garder la liste triée
-                      // _savePayesConnus(); // Si vous aviez une méthode pour sauvegarder en persistance
-                      _payeController.text =
-                          trimmedSelection; // Mettre à jour le contrôleur principal
-                    });
-                    print(
-                        '_payesConnus après ajout par onSelected: $_payesConnus');
-                  } else {
-                    // C'est une sélection existante ou le champ est vidé (si selection est vide)
-                    // ou la valeur est déjà connue (même si tapée manuellement et sélectionnée)
-                    setState(() {
-                      _payeController.text =
-                          trimmedSelection; // Mettre à jour le contrôleur principal
-                    });
-                  }
-                  print(
-                      '>>> Autocomplete: onSelected - _payeController.text mis à jour à: "${_payeController
-                          .text}"');
-                },
-                // Dans _buildSectionInformationsCles() -> _buildChampDetail pour 'Provenance' -> Autocomplete
-                fieldViewBuilder: (BuildContext context,
-                    TextEditingController fieldTextEditingController,
-                    // Contrôleur interne
-                    FocusNode fieldFocusNode,
-                    VoidCallback onFieldSubmitted) {
-                  print(
-                      ">>> Autocomplete: fieldViewBuilder construit. fieldTextEditingController.text: '${fieldTextEditingController
-                          .text}', _payeController.text: '${_payeController
-                          .text}'");
-
-                  // Synchronisation de _payeController vers fieldTextEditingController
-                  // Si onSelected a mis à jour _payeController et déclenché un setState,
-                  // le fieldTextEditingController interne doit refléter ce changement.
-                  if (fieldTextEditingController.text != _payeController.text) {
-                    // Utiliser addPostFrameCallback pour éviter les erreurs de build si onSelected vient de setState
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      // Vérifier si le widget est toujours monté avant d'accéder au contrôleur
-                      if (mounted && fieldTextEditingController.text !=
-                          _payeController.text) {
-                        fieldTextEditingController.text = _payeController.text;
-                        // Placer le curseur à la fin après la mise à jour
-                        fieldTextEditingController.selection =
-                            TextSelection.fromPosition(
-                                TextPosition(
-                                    offset: fieldTextEditingController.text
-                                        .length));
-                      }
-                    });
-                  }
-
-                  fieldFocusNode.addListener(() {
-                    print(
-                        ">>> Autocomplete fieldFocusNode Listener: hasFocus: ${fieldFocusNode
-                            .hasFocus}, fieldTextEditingController.text: '${fieldTextEditingController
-                            .text}'");
-                    if (fieldFocusNode.hasFocus &&
-                        fieldTextEditingController.text.isEmpty) {
-                      print(
-                          ">>> Autocomplete fieldFocusNode Listener: A LE FOCUS & TEXTE VIDE. optionsBuilder devrait être appelé.");
-                    }
-                  });
-
-                  return TextField(
-                    controller: fieldTextEditingController,
-                    // Utilise le contrôleur interne fourni
-                    focusNode: fieldFocusNode,
-                    decoration: InputDecoration(
-                      hintText: 'Payé à / Reçu de',
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding:
-                      const EdgeInsets.symmetric(
-                          vertical: 12.0, horizontal: 10.0),
-                    ),
-                    onTap: () {
-                      print(
-                          ">>> Autocomplete fieldViewBuilder TextField TAPPED! fieldTextEditingController.text: '${fieldTextEditingController
-                              .text}'");
-                    },
-                    onChanged: (text) {
-                      print(
-                          '>>> Autocomplete fieldViewBuilder onChanged: text = "$text"');
-                      // Mettre à jour _payeController pour que la logique "Ajouter..." dans optionsViewBuilder ait la valeur actuelle.
-                      // Important: NE PAS appeler setState() ici directement car Autocomplete
-                      // va se reconstruire et rappeler optionsBuilder de toute façon.
-                      _payeController.value = TextEditingValue(
-                        text: text,
-                        selection: TextSelection.collapsed(offset: text.length),
-                      );
-                      // Autocomplete s'occupe de rappeler optionsBuilder.
-                      print(
-                          '>>> Autocomplete fieldViewBuilder onChanged: _payeController mis à jour à: "${_payeController
-                              .text}"');
-                    },
-                    onSubmitted: (value) {
-                      print(
-                          '>>> Autocomplete fieldViewBuilder onSubmitted: value = "$value"');
-                      final String submittedValue = value.trim();
-
-                      if (submittedValue.isNotEmpty) {
-                        // Logique similaire à onSelected: si c'est une nouvelle valeur, on l'ajoute.
-                        // Puis on appelle onFieldSubmitted pour que Autocomplete ferme la liste des options.
-                        bool isNewPayee = !_payesConnus.any((p) =>
-                        p.toLowerCase() == submittedValue.toLowerCase());
-                        if (isNewPayee) {
-                          print(
-                              '>>> Autocomplete onSubmitted: "$submittedValue" est un nouveau payé. Ajout à _payesConnus.');
-                          setState(() {
-                            _payesConnus.add(submittedValue);
-                            _payesConnus.sort((a, b) =>
-                                a.toLowerCase().compareTo(b.toLowerCase()));
-                            // _savePayesConnus();
-                            _payeController.text =
-                                submittedValue; // Met à jour le contrôleur principal
-                            // La synchronisation dans fieldViewBuilder mettra à jour fieldTextEditingController si nécessaire
-                          });
-                        } else {
-                          // C'est une valeur existante, s'assurer que _payeController est bien à jour
-                          setState(() { // setState pour s'assurer que si l'utilisateur a juste soumis une valeur existante, elle est bien dans _payeController
-                            _payeController.text = submittedValue;
-                          });
-                        }
-                      }
-                      onFieldSubmitted(); // Crucial pour que Autocomplete gère la soumission (ferme les options etc.)
-                    },
-                  );
-                },
-                optionsViewBuilder: (BuildContext context,
-                    AutocompleteOnSelected<String> onSelectedCallback,
-                    Iterable<String> options /* options peut maintenant contenir la query elle-même */) {
-                  print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-                  print('>>> Autocomplete: optionsViewBuilder APPELÉ !');
-                  print('>>> Autocomplete: optionsViewBuilder - options reçues de optionsBuilder: ${options.toList()}');
-                  final String currentValue = _payeController.text.trim();
-                  print('>>> Autocomplete: optionsViewBuilder - _payeController.text (currentValue): "$currentValue"');
-
-                  // Créer les widgets pour les VRAIES suggestions (celles de _payesConnus)
-                  List<Widget> optionWidgets = options
-                      .where((option) => _payesConnus.any((known) => known.toLowerCase() == option.toLowerCase()) || option.toLowerCase() == currentValue.toLowerCase()) // Filtrer pour n'afficher que les vraies suggestions ou la query si elle est la seule "option"
-                      .map((String option) {
-                    // Si l'option est la query elle-même et qu'elle n'est pas une "vraie" suggestion connue,
-                    // on ne veut peut-être pas l'afficher comme une suggestion normale si "Ajouter..." va apparaître.
-                    // Pour l'instant, laissons-la, elle sera surchargée par "Ajouter..." si elle est identique.
-                    return GestureDetector(
-                      onTap: () {
-                        print('>>> Autocomplete optionsViewBuilder: Option "$option" TAPÉE');
-                        onSelectedCallback(option);
-                      },
-                      child: ListTile(
-                        title: Text(option),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 0),
-                        dense: true,
-                      ),
-                    );
-                  }).toList();
-
-                  // Si la seule "option" passée était la query elle-même (pour forcer l'ouverture),
-                  // et que cette query ne correspond à aucun payé connu, alors optionWidgets ne devrait contenir
-                  // que le ListTile pour cette query. On va le remplacer/compléter par "Ajouter..."
-                  // Ou, si options était vide (cas du focus sur champ vide), optionWidgets est vide ici.
-
-                  if (options.length == 1 && options.first.toLowerCase() == currentValue.toLowerCase() && !_payesConnus.any((p) => p.toLowerCase() == currentValue.toLowerCase())) {
-                    print('>>> Autocomplete: optionsViewBuilder - La seule option est la query elle-même ("$currentValue"), et elle n\'est pas dans _payesConnus. On vide optionWidgets pour prioriser "Ajouter..."');
-                    optionWidgets.clear(); // Vider pour que seul "Ajouter..." apparaisse si c'est le cas
-                  }
-
-
-                  print('>>> Autocomplete: optionsViewBuilder - optionWidgets après mapping initial (et filtrage potentiel): ${optionWidgets.length} éléments');
-
-                  // bool alreadyExistsInSuggestions = options.any((opt) => opt.toLowerCase() == currentValue.toLowerCase()); // L'ancienne logique
-                  // NOUVELLE logique pour alreadyExists: on vérifie contre _payesConnus directement
-                  bool isAlreadyAKnownPayee = _payesConnus.any((p) => p.toLowerCase() == currentValue.toLowerCase());
-                  print('>>> Autocomplete: optionsViewBuilder - isAlreadyAKnownPayee (pour "$currentValue" dans _payesConnus): $isAlreadyAKnownPayee');
-
-                  if (currentValue.isNotEmpty && !isAlreadyAKnownPayee) { // <<< CONDITION MODIFIÉE ICI
-                    print('>>> Autocomplete: optionsViewBuilder - Condition "Ajouter..." VRAIE pour "$currentValue". Ajout du widget.');
-                    // Vérifier si un widget pour "currentValue" existe déjà (par le mapping précédent) et le retirer
-                    // pour éviter doublon si "Ajouter currentValue" est plus approprié.
-                    // C'est déjà géré par le clear() plus haut si c'était le seul élément.
-                    optionWidgets.add(
-                        GestureDetector(
-                          onTap: () {
-                            print('>>> Autocomplete optionsViewBuilder: Option "Ajouter $currentValue" TAPÉE');
-                            onSelectedCallback(currentValue);
-                          },
-                          child: ListTile(
-                            title: Text('Ajouter "$currentValue"'),
-                            leading: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 0),
-                            dense: true,
-                          ),
-                        )
-                    );
-                  } else {
-                    print('>>> Autocomplete: optionsViewBuilder - Condition "Ajouter..." FAUSSE pour "$currentValue". isAlreadyAKnownPayee: $isAlreadyAKnownPayee');
-                  }
-                  print('>>> Autocomplete: optionsViewBuilder - optionWidgets après "Ajouter...": ${optionWidgets.length} éléments');
-
-                  // ... reste du code de optionsViewBuilder (SizedBox.shrink, Align, etc.)
-                  if (optionWidgets.isEmpty) {
-                    print(">>> Autocomplete: optionsViewBuilder - optionWidgets est VIDE. currentValue: '$currentValue'. Retourne SizedBox.shrink (Cas 1)");
-                    return const SizedBox.shrink();
-                  }
-
-                  print(">>> Autocomplete: optionsViewBuilder - Va retourner Align avec Material et ListView. Nombre d'options: ${optionWidgets.length}");
-                  print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-                  return Align(
-                    alignment: Alignment.topLeft,
-                    child: Material(
-                      elevation: 4.0,
-                      color: cardColor,
-                      shape: cardShape,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 220),
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          shrinkWrap: true,
-                          children: optionWidgets,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+              icone: Icons.person_outline, // ou Icons.handshake_outlined pour prêteur
+              libelle: _typeMouvementSelectionne == TypeMouvementFinancier.detteContractee ? 'Prêteur (Optionnel)' : 'Tiers',
+              widgetContenu: TextField(
+                controller: _payeController,
+                decoration: InputDecoration(
+                  hintText: _typeMouvementSelectionne == TypeMouvementFinancier.detteContractee ? 'Nom du prêteur' : 'Payé à / Reçu de',
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0),
+                ),
+                // Vous pouvez ajouter ici une logique d'autocomplétion si vous le souhaitez
               ),
             ),
             _buildSeparateurDansCarte(),
+
+            // --- CHAMP COMPTE (Doit TOUJOURS être visible) ---
+            // IL NE DOIT PLUS Y AVOIR DE "if (_typeMouvementSelectionne != TypeMouvementFinancier.detteContractee)" ICI
             _buildChampDetail(
-              icone: Icons.wallet_outlined,
-              libelle: 'Enveloppe',
-              widgetContenu: _buildDropdown(
-                  _listeEnveloppes, _enveloppeSelectionnee, (val) {
-                setState(() => _enveloppeSelectionnee = val);
-              }, 'Choisir une enveloppe'),
+              icone: Icons.account_balance_wallet_outlined,
+              // Le libellé peut changer dynamiquement
+              libelle: _typeMouvementSelectionne == TypeMouvementFinancier.detteContractee
+                  ? 'Vers Compte Actif' // Libellé spécifique pour les dettes
+                  : 'Compte',        // Libellé normal
+              widgetContenu: DropdownButtonFormField<String>(
+                value: _compteSelectionne,
+                items: _listeComptesAffichables.map((String compte) { // Assurez-vous que _listeComptesAffichables contient vos comptes d'actifs
+                  return DropdownMenuItem<String>(
+                    value: compte,
+                    child: Text(compte, style: Theme.of(context).textTheme.bodyMedium, overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _compteSelectionne = newValue;
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: 'Sélectionner un compte', // Texte d'aide si rien n'est sélectionné
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0),
+                ),
+                isExpanded: true,
+              ),
             ),
             _buildSeparateurDansCarte(),
+
+            // ... (Vos autres champs: Date, Enveloppe, Marqueur, Note - INCHANGÉS)
+            // Exemple pour Date:
             _buildChampDetail(
-              icone: Icons.account_balance_outlined,
-              libelle: 'Compte',
-              widgetContenu: _buildDropdown(
-                  _listeComptes, _compteSelectionne, (val) {
-                setState(() => _compteSelectionne = val);
-              }, 'Choisir un compte'),
-            ),
-            _buildSeparateurDansCarte(),
-            _buildChampDetailInteraction(
               icone: Icons.calendar_today_outlined,
               libelle: 'Date',
-              valeur: "${_dateSelectionnee.year}-${_dateSelectionnee.month
-                  .toString().padLeft(2, '0')}-${_dateSelectionnee.day
-                  .toString().padLeft(2, '0')}",
-              onTap: _choisirDate,
+              widgetContenu: InkWell(
+                onTap: () async {
+                  final DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: _dateSelectionnee,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2101),
+                  );
+                  if (picked != null && picked != _dateSelectionnee) {
+                    setState(() {
+                      _dateSelectionnee = picked;
+                    });
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 10.0),
+                  child: Text(
+                    "${_dateSelectionnee.toLocal()}".split(' ')[0], // Format YYYY-MM-DD
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ),
+            ),
+            _buildSeparateurDansCarte(),
+
+            _buildChampDetail(
+              icone: Icons.label_outline,
+              libelle: 'Enveloppe',
+              widgetContenu: DropdownButtonFormField<String>(
+                value: _enveloppeSelectionnee,
+                items: [
+                  const DropdownMenuItem<String>(value: null, child: Text("Aucune", style: TextStyle(fontStyle: FontStyle.italic))),
+                  ..._listeEnveloppes.map((String enveloppe) {
+                    return DropdownMenuItem<String>(value: enveloppe, child: Text(enveloppe));
+                  })
+                ],
+                onChanged: (String? newValue) => setState(() => _enveloppeSelectionnee = newValue),
+                decoration: InputDecoration(hintText: 'Optionnel', border: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0)),
+                isExpanded: true,
+              ),
+            ),
+            _buildSeparateurDansCarte(),
+
+            _buildChampDetail(
+              icone: Icons.flag_outlined,
+              libelle: 'Marqueur',
+              widgetContenu: DropdownButtonFormField<String>(
+                value: _marqueurSelectionne ?? _listeMarqueurs.first, // Assurer une valeur par défaut non nulle
+                items: _listeMarqueurs.map((String marqueur) {
+                  return DropdownMenuItem<String>(value: marqueur, child: Text(marqueur));
+                }).toList(),
+                onChanged: (String? newValue) => setState(() => _marqueurSelectionne = newValue),
+                decoration: InputDecoration(border: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0)),
+                isExpanded: true,
+              ),
+            ),
+            _buildSeparateurDansCarte(),
+
+            _buildChampDetail(
+              icone: Icons.notes_outlined,
+              libelle: 'Note',
+              widgetContenu: TextField(
+                controller: _noteController,
+                decoration: InputDecoration(
+                  hintText: 'Optionnel',
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0),
+                ),
+                textCapitalization: TextCapitalization.sentences,
+                maxLines: null, // Permet plusieurs lignes
+              ),
+              alignementVerticalIcone: CrossAxisAlignment.start,
             ),
           ],
         ),
@@ -613,221 +431,160 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
     );
   }
 
-  Widget _buildSeparateurDansCarte() {
-    return Divider(height: 0.5, indent: 0, endIndent: 0, color: Theme
-        .of(context)
-        .dividerColor
-        .withOpacity(0.5));
-  }
-
-  Widget _buildChampDetail(
-      {required IconData icone, required String libelle, required Widget widgetContenu}) {
+  // _buildChampDetail() - (Peut-être ajouter un paramètre pour l'alignement de l'icône si besoin)
+  Widget _buildChampDetail({
+    required IconData icone,
+    required String libelle,
+    required Widget widgetContenu,
+    CrossAxisAlignment alignementVerticalIcone = CrossAxisAlignment.center,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
+        crossAxisAlignment: alignementVerticalIcone,
         children: <Widget>[
-          Icon(icone, color: Theme
-              .of(context)
-              .iconTheme
-              .color
-              ?.withOpacity(0.7) ?? Colors.grey[500], size: 22),
-          const SizedBox(width: 16),
-          Expanded(child: widgetContenu),
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0, top: 2.0), // Léger ajustement pour l'icône
+            child: Icon(icone, color: Theme.of(context).textTheme.bodySmall?.color),
+          ),
+          Expanded(
+            flex: 2, // Donne plus de place au libellé si nécessaire
+            child: Text(libelle, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          Expanded(
+            flex: 3, // Donne plus de place au contenu
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: widgetContenu,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildChampDetailInteraction(
-      {required IconData icone, required String libelle, required String valeur, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12.0),
-        child: Row(
-          children: <Widget>[
-            Icon(icone, color: Theme
-                .of(context)
-                .iconTheme
-                .color
-                ?.withOpacity(0.7) ?? Colors.grey[500], size: 22),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(valeur, style: Theme
-                  .of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                color: Theme
-                    .of(context)
-                    .textTheme
-                    .bodyLarge
-                    ?.color,
-              )),
-            ),
-            Icon(Icons.arrow_drop_down, color: Colors.grey[500]),
-          ],
-        ),
-      ),
-    );
+  // _buildSeparateurDansCarte() - (INCHANGÉE)
+  Widget _buildSeparateurDansCarte() {
+    return Divider(height: 1, color: Colors.grey.withOpacity(0.3));
   }
 
-  Widget _buildDropdown(List<String> items, String? currentValue,
-      ValueChanged<String?> onChanged, String hintText) {
-    const EdgeInsets internalContentPadding = EdgeInsets.symmetric(
-        vertical: 10.0, horizontal: 10.0);
-    return DropdownButtonFormField<String>(
-      value: currentValue,
-      items: items.map((String val) {
-        return DropdownMenuItem<String>(
-          value: val,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-                horizontal: internalContentPadding.left / 2),
-            child: Text(val, style: Theme
-                .of(context)
-                .textTheme
-                .bodyMedium),
-          ),
-        );
-      }).toList(),
-      onChanged: onChanged,
-      decoration: InputDecoration(
-        hintText: hintText,
-        border: InputBorder.none,
-        isDense: true,
-        contentPadding: internalContentPadding,
-      ),
-      isExpanded: true,
-    );
-  }
-
-  Future<void> _choisirDate() async {
-    final DateTime? dateChoisie = await showDatePicker(
-      context: context,
-      initialDate: _dateSelectionnee,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-    );
-    if (dateChoisie != null && dateChoisie != _dateSelectionnee) {
-      setState(() {
-        _dateSelectionnee = dateChoisie;
-      });
-    }
-  }
-
-  Widget _buildSectionOptionsAdditionnelles() {
-    final cardColor = Theme
-        .of(context)
-        .cardTheme
-        .color ?? (Theme
-        .of(context)
-        .brightness == Brightness.dark ? Colors.grey[850]! : Colors.white);
-    final cardShape = Theme
-        .of(context)
-        .cardTheme
-        .shape ?? RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12.0),
-    );
-
-    return Card(
-        color: cardColor,
-        shape: cardShape,
-        child: Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16.0, vertical: 8.0),
-            child: Column(
-              children: [
-                _buildChampDetail(
-                  icone: Icons.flag_outlined,
-                  libelle: 'Marqueur',
-                  widgetContenu: _buildDropdown(
-                    _listeMarqueurs,
-                    _marqueurSelectionne,
-                        (val) {
-                      setState(() => _marqueurSelectionne = val);
-                    },
-                    'Choisir un marqueur',
-                  ),
-                ),
-                _buildSeparateurDansCarte(),
-                _buildChampDetail(
-                    icone: Icons.notes_outlined,
-                    libelle: 'Note',
-                    widgetContenu: TextField(
-                      controller: _noteController,
-                      decoration: const InputDecoration(
-                          hintText: 'Ajouter une note (optionnel)',
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                              vertical: 8.0, horizontal: 10.0)),
-                      keyboardType: TextInputType.text,
-                      textCapitalization: TextCapitalization.sentences,
-                      maxLines: 3,
-                      minLines: 1,
-                    ))
-              ],
-            ))
-    );
-  }
-
+  // --- Méthode build() avec le bouton Sauvegarder MODIFIÉ ---
   @override
   Widget build(BuildContext context) {
-    print("--- ECRAN BUILD RECONSTRUIT ---");
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ajouter Transaction'),
+        // actions: [IconButton(icon: Icon(Icons.save), onPressed: _sauvegarderTransaction)], // Si vous aviez un bouton save ici
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Center(child: _buildSelecteurTypeTransaction()),
+            _buildSelecteurTypeTransaction(),
             _buildChampMontant(),
             _buildSectionInformationsCles(),
-            const SizedBox(height: 20),
-            Text(
-              'Options additionnelles',
-              style: Theme
-                  .of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            _buildSectionOptionsAdditionnelles(),
             const SizedBox(height: 30),
-            // Dans la méthode build() -> ElevatedButton(onPressed: ...)
-            ElevatedButton(
-              onPressed: () {
-                print('--- BOUTON SAUVEGARDER PRESSÉ ---');
-                print('Type: $_typeSelectionne');
-                print('Montant: ${_montantController.text}');
-                print('Payé/Reçu de: ${_payeController
-                    .text}'); // Devrait avoir la valeur sélectionnée ou ajoutée
-                print('Enveloppe: $_enveloppeSelectionnee');
-                print('Compte: $_compteSelectionne');
-                print('Date: $_dateSelectionnee');
-                print('Marqueur: $_marqueurSelectionne');
-                print('Note: ${_noteController.text}');
 
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
+            // --- BOUTON SAUVEGARDER (LOGIQUE MODIFIÉE) ---
+            ElevatedButton(
+              onPressed: () async {
+                final double montant = double.tryParse(_montantController.text.replaceAll(',', '.')) ?? 0.0;
+                final String tiersTexte = _payeController.text.trim(); // Nom du prêteur pour une dette
+
+                if (montant <= 0) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez entrer un montant valide.')));
+                  return;
+                }
+
+                // Le compte sélectionné dans le dropdown est TOUJOURS le compte d'actif.
+                if (_compteSelectionne == null || _compteSelectionne!.isEmpty) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez sélectionner le compte de destination.')));
+                  return;
+                }
+                String compteActifCible = _compteSelectionne!;
+                String? nomCompteDePassifPourCetteTransaction; // Sera rempli si c'est une dette
+
+                if (_typeMouvementSelectionne == TypeMouvementFinancier.detteContractee) {
+                  // S'assurer qu'un prêteur est spécifié, même si c'est pour un compte générique
+                  if (tiersTexte.isEmpty) {
+                    // Optionnel: Afficher un dialogue pour forcer le nom du prêteur ou générique
+                    // Pour l'instant, on va juste le demander via le hintText du champ prêteur.
+                    // Mais si tiersTexte est vide, _definirNomCompteDette va déjà demander
+                    // s'il faut utiliser "Prêt Personnel Générique".
+                  }
+
+                  if (!mounted) return;
+                  String? nomCompteDetteDefini = await _definirNomCompteDette(tiersTexte, montant);
+
+                  if (nomCompteDetteDefini == null) {
+                    print("Sauvegarde annulée car la définition du nom du compte de dette a échoué.");
+                    return;
+                  }
+                  nomCompteDePassifPourCetteTransaction = nomCompteDetteDefini;
+
+                  // --- PERSISTANCE DU COMPTE DE DETTE LUI-MÊME (si nouveau) ---
+                  // Cette logique crée le "Compte de Passif" dans votre système de comptes.
+                  // Exemple:
+                  // bool comptePassifExisteDeja = await votreServiceComptes.existe(nomCompteDePassifPourCetteTransaction);
+                  // if (!comptePassifExisteDeja) {
+                  //    await votreServiceComptes.creerCompte(nom: nomCompteDePassifPourCetteTransaction, type: "Dette", soldeInitial: montant);
+                  //    print('COMPTE DE PASSIF "$nomCompteDePassifPourCetteTransaction" CRÉÉ EN BD.');
+                  //    // Optionnel: Mettre à jour _nomsDesComptesActuels si vous mélangez les types dans un seul dropdown,
+                  //    // mais ici _listeComptesAffichables ne devrait contenir que les comptes d'actifs.
+                  // } else {
+                  //    // Si le compte de dette existe déjà, vous pourriez vouloir mettre à jour son solde (ajouter le nouveau montant de dette)
+                  //    // await votreServiceComptes.mettreAJourSolde(nomCompteDePassifPourCetteTransaction, montant);
+                  //    print('COMPTE DE PASSIF "$nomCompteDePassifPourCetteTransaction" EXISTE DÉJÀ. Solde potentiellement mis à jour.');
+                  // }
+                  print('>>> PERSISTANCE (simulation) du COMPTE DE PASSIF : "$nomCompteDePassifPourCetteTransaction" <<<');
+
+                }
+                // Pas de 'else' ici pour compteActifCible, car il est déjà défini à partir de _compteSelectionne
+
+                // --- CRÉATION ET SAUVEGARDE DE LA TRANSACTION ---
+                final String transactionId = DateTime.now().millisecondsSinceEpoch.toString();
+                final nouvelleTransaction = Transaction(
+                  id: transactionId,
+                  type: _typeSelectionne, // Sera .revenu pour detteContractee
+                  typeMouvement: _typeMouvementSelectionne,
+                  montant: montant,
+                  tiers: tiersTexte, // Nom du prêteur si dette, sinon tiers normal
+                  compteId: compteActifCible, // COMPTE D'ACTIF où l'argent est déposé
+                  compteDePassifAssocie: nomCompteDePassifPourCetteTransaction, // Nom du compte de dette si applicable
+                  date: _dateSelectionnee,
+                  enveloppeId: _enveloppeSelectionnee,
+                  marqueur: _marqueurSelectionne,
+                  note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+                );
+
+                print('>>> Transaction à sauvegarder: ${nouvelleTransaction.toJson()}');
+                print('Compte ACTIF cible pour la transaction: $compteActifCible');
+                if (nomCompteDePassifPourCetteTransaction != null) {
+                  print('Compte de PASSIF associé: $nomCompteDePassifPourCetteTransaction');
+                }
+
+                // --- VRAIE PERSISTANCE DE LA TRANSACTION ---
+                // await votreServiceTransactions.sauvegarder(nouvelleTransaction);
+                print('>>> PERSISTANCE (simulation) de la TRANSACTION <<<');
+
+                // --- MISE À JOUR DU SOLDE DU COMPTE ACTIF CIBLE ---
+                // Le solde du compte d'actif (ex: Compte Courant) augmente car on a reçu de l'argent (le prêt).
+                // await votreServiceComptes.mettreAJourSolde(
+                //   compteActifCible,
+                //   montant // Toujours positif car c'est un revenu sur le compte d'actif
+                // );
+                print('>>> MISE À JOUR SOLDE (simulation) pour COMPTE ACTIF "$compteActifCible" de +$montant <<<');
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Transaction sauvegardée pour "$compteActifCible".')),
+                  );
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context, true);
+                  }
                 }
               },
-              style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  textStyle: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25.0),
-                  )),
+              // ... style ...
               child: const Text('Sauvegarder'),
             ),
           ],

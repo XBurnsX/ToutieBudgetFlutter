@@ -46,7 +46,7 @@ class _EcranAccueilState extends State<EcranAccueil> {
 
   static const List<Widget> _optionsDesPagesPrincipales = <Widget>[
     PageBudget(),
-    const EcranListeComptes(),
+    EcranListeComptes(),
     PageStatistiques(),
   ];
 
@@ -56,33 +56,47 @@ class _EcranAccueilState extends State<EcranAccueil> {
     'Compte',
     'Statistiques',
   ];
+  List<String> _nomsDesComptesActuels = [
+    "Compte Courant",
+    "Épargne",
+    "Carte de Crédit Perso",
+    // ... autres comptes réels
+  ];
   void _naviguerVersCreationCompte() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const EcranCreationCompte()),
     ).then((resultat) {
-      // Optionnel : Gérer le résultat si EcranCreationCompte retourne quelque chose
-      // Par exemple, si un nouveau compte a été créé, vous pourriez vouloir
-      // forcer un rafraîchissement de EcranListeComptes.
-      // Cela dépendra de comment vous gérez l'état des comptes (plus tard).
-      if (resultat == true) { // Supposons que true signifie qu'un compte a été ajouté
-        // Pour l'instant, on ne fait rien de spécial ici, car EcranListeComptes
-        // devrait se reconstruire si ses propres données changent.
-        // Si EcranListeComptes a besoin d'être explicitement notifié,
-        // une solution de gestion d'état plus avancée serait utile.
+      if (resultat == true) {
         print("Retour de l'écran de création de compte, un compte pourrait avoir été ajouté.");
+        // TODO: Rafraîchir _nomsDesComptesActuels si un nouveau compte a été ajouté
+        // Cela dépendra de comment vous gérez l'état global de vos comptes.
+        // Si EcranCreationCompte ajoute à une base de données, vous devrez peut-être recharger ici.
+        // setState(() { _chargerComptes(); }); // Par exemple
       }
     });
   }
   void _auChangementOnglet(int index) {
     if (index == 2) { // Si c'est le bouton "Nouvelle Transaction"
+      // --- C'EST ICI LA MODIFICATION ---
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const EcranAjoutTransaction()),
-      ).then((_) {
-        // ...
+        MaterialPageRoute(
+          builder: (context) => EcranAjoutTransaction(
+            comptesExistants: _nomsDesComptesActuels, // PASSER LA LISTE ICI
+          ),
+        ),
+      ).then((transactionAjoutee) {
+        if (transactionAjoutee == true) {
+          // Une transaction a été ajoutée.
+          // Vous pourriez vouloir rafraîchir des données ici si nécessaire (ex: soldes, liste de transactions)
+          print("Retour de l'écran d'ajout de transaction : une transaction a été ajoutée.");
+          // Si une transaction a créé un nouveau compte de dette, vous pourriez aussi vouloir
+          // rafraîchir _nomsDesComptesActuels.
+          // setState(() { _chargerComptes(); }); // Par exemple
+        }
       });
-      return;
+      return; // Ne pas changer l'onglet sélectionné
     }
 
     int nouvelIndicePrincipal = index;
