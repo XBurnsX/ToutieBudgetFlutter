@@ -1,25 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:toutie_budget/models/compte_model.dart';
 
-// --- MODÈLES DE DONNÉES SPÉCIFIQUES À CET ÉCRAN OU PARTAGÉS ---
-enum TypeDeCompte {
-  compteBancaire, // Sera notre "Compte Courant" / "Argent Comptant"
-  dette,
-  investissement,
-}
-
-class Compte {
-  String id;
-  String nom;
-  TypeDeCompte type;
-  double solde;
-
-  Compte({
-    required this.id,
-    required this.nom,
-    required this.type,
-    required this.solde,
-  });
-}
 
 // --- L'ÉCRAN LUI-MÊME ---
 class EcranListeComptes extends StatefulWidget {
@@ -30,13 +11,14 @@ class EcranListeComptes extends StatefulWidget {
 }
 
 class _EcranListeComptesState extends State<EcranListeComptes> {
-  final List<Compte> _tousLesComptes = [
-    Compte(id: 'c1', nom: 'Compte Chèque Principal', type: TypeDeCompte.compteBancaire, solde: 1250.75),
-    Compte(id: 'c2', nom: 'Compte Épargne Avenir', type: TypeDeCompte.compteBancaire, solde: 5300.00),
-    Compte(id: 'd1', nom: 'Prêt Étudiant', type: TypeDeCompte.dette, solde: -8750.00),
-    Compte(id: 'i1', nom: 'CELI Investissements', type: TypeDeCompte.investissement, solde: 12000.00),
-    Compte(id: 'c3', nom: 'Petite Caisse', type: TypeDeCompte.compteBancaire, solde: 150.00),
-  ];
+  final List<Compte> _tousLesComptes = [];
+    //   Compte(id: 'c1', nom: 'Compte Chèque Principal', type: TypeDeCompte.compteBancaire, solde: 1250.75),
+    //   Compte(id: 'c2', nom: 'Compte Épargne Avenir', type: TypeDeCompte.compteBancaire, solde: 5300.00),
+    //   Compte(id: 'd1', nom: 'Prêt Étudiant', type: TypeDeCompte.dette, solde: -8750.00),
+    //   Compte(id: 'i1', nom: 'CELI Investissements', type: TypeDeCompte.investissement, solde: 12000.00),
+    //   Compte(id: 'c3', nom: 'Petite Caisse', type: TypeDeCompte.compteBancaire, solde: 150.00),
+    // ];
+
 
   // Filtrer les comptes pour la section "Compte Courant"
   List<Compte> get _comptesCourants {
