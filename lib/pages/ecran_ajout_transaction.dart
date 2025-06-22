@@ -1,5 +1,6 @@
 // lib/pages/ecran_ajout_transaction.dart
 import 'package:flutter/material.dart';
+// import 'package:shared_preferences/shared_preferences.dart'; // Décommentez pour la persistance
 
 enum TypeTransaction { depense, revenu }
 
@@ -12,58 +13,97 @@ class EcranAjoutTransaction extends StatefulWidget {
 
 class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
   TypeTransaction _typeSelectionne = TypeTransaction.depense;
-  final TextEditingController _montantController = TextEditingController(text: '0.00');
+  final TextEditingController _montantController = TextEditingController(
+      text: '0.00');
   final FocusNode _montantFocusNode = FocusNode();
 
-  // Variables d'état pour les champs de détails
   final TextEditingController _payeController = TextEditingController();
+  final List<String> _payesConnus = [
+    'Epicerie Max',
+    'Pharmacie Jean Coutu',
+    'Shell',
+    'Salaire Inc.',
+    'Loyer'
+  ]; // Exemple étendu
+  // FocusNode pour le champ Autocomplete lui-même, géré par Autocomplete
+  // final FocusNode _autocompleteFocusNode = FocusNode(); // Pas besoin de le définir ici si on utilise celui de fieldViewBuilder
+
   String? _enveloppeSelectionnee;
   String? _compteSelectionne;
   DateTime _dateSelectionnee = DateTime.now();
-  String? _marqueurSelectionne; // Sera utilisé dans la section options additionnelles
-  final TextEditingController _noteController = TextEditingController(); // Sera utilisé dans la section options additionnelles
+  String? _marqueurSelectionne;
+  final TextEditingController _noteController = TextEditingController();
 
-  // Données factices pour les Dropdowns (à remplacer par vos vraies données plus tard)
-  // TODO: Remplacer par vos données réelles (ex: depuis Firebase)
-  final List<String> _listeEnveloppes = ['Nourriture', 'Transport', 'Loisirs', 'Factures'];
-  final List<String> _listeComptes = ['Compte Courant', 'Épargne', 'Carte de Crédit'];
+  final List<String> _listeEnveloppes = [
+    'Nourriture',
+    'Transport',
+    'Loisirs',
+    'Factures'
+  ];
+  final List<String> _listeComptes = [
+    'Compte Courant',
+    'Épargne',
+    'Carte de Crédit'
+  ];
   final List<String> _listeMarqueurs = ['Aucun', 'Important', 'À vérifier'];
-
 
   @override
   void initState() {
     super.initState();
-    _montantController.addListener(() {
-      final text = _montantController.text;
-      // La logique de préfixe automatique du signe a été commentée pour éviter les problèmes de curseur.
-      // La couleur du champ montant indique déjà le type.
-    });
+    print("--- ECRAN INIT STATE ---");
+    // _loadPayesConnus();
 
+    _montantController.addListener(() {});
     _montantFocusNode.addListener(() {
-      if (_montantFocusNode.hasFocus) {
-        // La sélection du texte "0.00" est gérée dans onTap du TextField
+      if (_montantFocusNode.hasFocus && _montantController.text == '0.00') {
+        _montantController.selection = TextSelection(
+            baseOffset: 0, extentOffset: _montantController.text.length);
       }
     });
   }
 
+  /*
+  Future<void> _loadPayesConnus() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _payesConnus.clear();
+      _payesConnus.addAll(prefs.getStringList('payesConnus') ?? ['Epicerie Max', 'Pharmacie Jean Coutu', 'Shell']);
+      if (_payesConnus.isEmpty) {
+        _payesConnus.addAll(['Epicerie Max', 'Pharmacie Jean Coutu', 'Shell']);
+      }
+    });
+    print("Payés connus chargés: $_payesConnus");
+  }
+
+  Future<void> _savePayesConnus() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('payesConnus', _payesConnus);
+    print("Payés connus sauvegardés: $_payesConnus");
+  }
+  */
+
   @override
   void dispose() {
+    print("--- ECRAN DISPOSE ---");
     _montantController.dispose();
     _montantFocusNode.dispose();
     _payeController.dispose();
     _noteController.dispose();
+    // _autocompleteFocusNode.dispose(); // Si vous l'aviez créé explicitement
     super.dispose();
   }
 
   Widget _buildSelecteurTypeTransaction() {
-    // Le style du container du sélecteur pourrait aussi venir du thème si vous avez beaucoup de sélecteurs similaires.
-    // Pour l'instant, c'est un style local.
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color selectorBackgroundColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
-    final Color selectedOptionColor = isDark ? Colors.black54 : Colors.blueGrey[700]!; // Ajustez pour thème clair
-    final Color unselectedTextColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
+    final bool isDark = Theme
+        .of(context)
+        .brightness == Brightness.dark;
+    final Color selectorBackgroundColor = isDark ? Colors.grey[800]! : Colors
+        .grey[300]!;
+    final Color selectedOptionColor = isDark ? Colors.black54 : Colors
+        .blueGrey[700]!;
+    final Color unselectedTextColor = isDark ? Colors.grey[400]! : Colors
+        .grey[600]!;
     final Color selectedTextColor = Colors.white;
-
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 20.0),
@@ -74,31 +114,33 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          _buildOptionType(TypeTransaction.depense, '- Dépense', selectedOptionColor, selectedTextColor, unselectedTextColor),
-          _buildOptionType(TypeTransaction.revenu, '+ Revenu', selectedOptionColor, selectedTextColor, unselectedTextColor),
+          _buildOptionType(
+              TypeTransaction.depense, '- Dépense', selectedOptionColor,
+              selectedTextColor, unselectedTextColor),
+          _buildOptionType(
+              TypeTransaction.revenu, '+ Revenu', selectedOptionColor,
+              selectedTextColor, unselectedTextColor),
         ],
       ),
     );
   }
 
-  Widget _buildOptionType(TypeTransaction type, String libelle, Color selectedBackgroundColor, Color selectedTextColor, Color unselectedTextColor) {
+  Widget _buildOptionType(TypeTransaction type, String libelle,
+      Color selectedBackgroundColor, Color selectedTextColor,
+      Color unselectedTextColor) {
     final estSelectionne = _typeSelectionne == type;
     return Expanded(
       child: GestureDetector(
         onTap: () {
           setState(() {
             _typeSelectionne = type;
-            String valeurActuelle = _montantController.text.replaceAll('-', '');
-            if (valeurActuelle.isEmpty || double.tryParse(valeurActuelle) == 0.0) {
-              _montantController.text = '0.00';
-            }
-            // Pas de préfixe automatique du signe
           });
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
           decoration: BoxDecoration(
-            color: estSelectionne ? selectedBackgroundColor : Colors.transparent,
+            color: estSelectionne ? selectedBackgroundColor : Colors
+                .transparent,
             borderRadius: BorderRadius.circular(25.0),
           ),
           child: Text(
@@ -115,10 +157,12 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
   }
 
   Widget _buildChampMontant() {
-    // La couleur du texte est gérée par le thème ou explicitement pour le contraste
     final Color couleurMontant = _typeSelectionne == TypeTransaction.depense
-        ? (Theme.of(context).colorScheme.error) // Utilise la couleur d'erreur du thème pour les dépenses
-        : Colors.greenAccent; // Ou une couleur spécifique pour les revenus
+        ? (Theme
+        .of(context)
+        .colorScheme
+        .error)
+        : Colors.greenAccent[700] ?? Colors.green;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 30.0),
@@ -131,15 +175,16 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
           fontWeight: FontWeight.bold,
           color: couleurMontant,
         ),
-        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: false), // signed: false car on gère visuellement
+        keyboardType: const TextInputType.numberWithOptions(
+            decimal: true, signed: false),
         decoration: InputDecoration(
             border: InputBorder.none,
             hintText: '0.00',
-            hintStyle: TextStyle(color: Colors.grey[600]) // Le thème devrait le gérer, mais on peut forcer
-        ),
+            hintStyle: TextStyle(color: Colors.grey[600])),
         onTap: () {
           if (_montantController.text == '0.00') {
-            _montantController.selection = TextSelection(baseOffset: 0, extentOffset: _montantController.text.length);
+            _montantController.selection = TextSelection(
+                baseOffset: 0, extentOffset: _montantController.text.length);
           }
         },
       ),
@@ -147,174 +192,324 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
   }
 
   Widget _buildSectionInformationsCles() {
-    final cardColor = Theme.of(context).cardTheme.color ?? (Theme.of(context).brightness == Brightness.dark ? Colors.grey[850] : Colors.white);
-    final cardShape = Theme.of(context).cardTheme.shape ?? RoundedRectangleBorder(
+    final cardColor = Theme
+        .of(context)
+        .cardTheme
+        .color ?? (Theme
+        .of(context)
+        .brightness == Brightness.dark ? Colors.grey[850]! : Colors.white);
+    final cardShape = Theme
+        .of(context)
+        .cardTheme
+        .shape ?? RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12.0),
     );
+    print(
+        "--- _buildSectionInformationsCles RECONSTRUIT --- _payeController.text: ${_payeController
+            .text}");
 
     return Card(
-        color: cardColor,
-        shape: cardShape,
-        child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal:16.0, vertical: 8.0), // Padding vertical réduit
-    child: Column(
-    children: <Widget>[
-    _buildChampDetail(
-    icone: Icons.swap_horiz,
-    libelle: 'Provenance', // Ce libellé n'est pas affiché par _buildChampDetail pour l'instant
-    widgetContenu: TextField(
-    controller: _payeController,
-    decoration: InputDecoration(
-    hintText: 'Provenance',
-    border: InputBorder.none, // Pour un look épuré dans la carte
-    isDense: true, // Réduit la hauteur du champ
-        contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 10.0)
-    ),
-    ),
-    ),
-    _buildSeparateurDansCarte(),
-    _buildChampDetail(
-    icone: Icons.wallet_outlined,
-    libelle: 'Enveloppe',
-    widgetContenu: _buildDropdown(_listeEnveloppes, _enveloppeSelectionnee, (val) {
-    setState(() => _enveloppeSelectionnee = val);
-    }, 'Choisir une enveloppe'),
-    ),
-    _buildSeparateurDansCarte(),
-    _buildChampDetail(
-    icone: Icons.account_balance_outlined,
-    libelle: 'Compte',
-    widgetContenu: _buildDropdown(_listeComptes, _compteSelectionne, (val) {
-    setState(() => _compteSelectionne = val);
-    }, 'Choisir un compte'),
-    ),
-    _buildSeparateurDansCarte(),
-    _buildChampDetailInteraction(
-    icone: Icons.calendar_today_outlined,
-    libelle: 'Date',
-    valeur: "${_dateSelectionnee.year}-${_dateSelectionnee.month.toString().padLeft(2, '0')}-${_dateSelectionnee.day.toString().padLeft(2, '0')}", // Format AAAA-MM-JJ
-      onTap: () async {
-        final DateTime? dateChoisie = await showDatePicker(
-          context: context,
-          initialDate: _dateSelectionnee,
-          firstDate: DateTime(2000),
-          lastDate: DateTime(2101),
-          // Vous pouvez utiliser builder pour styler le DatePicker
-          // builder: (context, child) {
-          //   return Theme(
-          //     data: Theme.of(context).copyWith(
-          //       colorScheme: Theme.of(context).colorScheme.copyWith(
-          //         primary: Theme.of(context).colorScheme.primary, // Couleur primaire pour la sélection
-          //         onPrimary: Colors.white, // Texte sur la couleur primaire
-          //       ),
-          //       // ... autres personnalisations du thème du DatePicker
-          //     ),
-          //     child: child!,
-          //   );
-          // },
-        );
-        if (dateChoisie != null && dateChoisie != _dateSelectionnee) {
-          setState(() {
-            _dateSelectionnee = dateChoisie;
-          });
-        }
-      },
-    ),
-    ],
-    ),
-        ),
-    );
-  }
+      color: cardColor,
+      shape: cardShape,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Column(
+          children: <Widget>[
+            _buildChampDetail(
+              icone: Icons.swap_horiz,
+              libelle: 'Provenance',
+              widgetContenu: Autocomplete<String>(
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  print('>>> Autocomplete: optionsBuilder appelé avec texte: "${textEditingValue.text}"');
+                  final String query = textEditingValue.text;
 
-  // TODO: Implémenter _buildSectionOptionsAdditionnelles() ici
-  Widget _buildSectionOptionsAdditionnelles() {
-    // Structure similaire à _buildSectionInformationsCles
-    // Avec les champs "Marqueur" et "Note"
-    final cardColor = Theme.of(context).cardTheme.color ?? (Theme.of(context).brightness == Brightness.dark ? Colors.grey[850] : Colors.white);
-    final cardShape = Theme.of(context).cardTheme.shape ?? RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12.0),
-    );
+                  if (query.isEmpty) {
+                    print('>>> Autocomplete: optionsBuilder - Texte vide, retourne TOUS les _payesConnus: $_payesConnus');
+                    return _payesConnus;
+                  }
 
-    return Card(
-        color: cardColor,
-        shape: cardShape,
-        child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal:16.0, vertical: 8.0),
-            child: Column(
-                children: [
-                  // Placeholder pour le contenu de la section
-                  _buildChampDetailInteraction(
-                      icone: Icons.flag_outlined,
-                      libelle: 'Marqueur',
-                      valeur: _marqueurSelectionne ?? _listeMarqueurs.first, // Affiche 'Aucun' ou la valeur sélectionnée
+                  final suggestions = _payesConnus.where((String option) {
+                    return option.toLowerCase().contains(query.toLowerCase());
+                  }).toList(); // Convertir en liste ici
+
+                  print('>>> Autocomplete: optionsBuilder - Suggestions filtrées trouvées: ${suggestions.toList()} pour "$query"');
+
+                  // SI AUCUNE SUGGESTION TROUVÉE ET QUE LE CHAMP N'EST PAS VIDE,
+                  // ON VEUT QUAND MÊME AFFICHER L'OPTION "AJOUTER..."
+                  if (suggestions.isEmpty && query.isNotEmpty) {
+                    print('>>> Autocomplete: optionsBuilder - Aucune suggestion pour "$query", mais query non vide. Retourne une liste avec la query elle-même pour forcer optionsViewBuilder.');
+                    // Retourner une liste contenant la query actuelle (ou une valeur sentinelle)
+                    // pour que Autocomplete appelle optionsViewBuilder.
+                    // Cette valeur sera ignorée ou gérée dans optionsViewBuilder si besoin,
+                    // car notre logique "Ajouter..." se base sur _payeController.text.
+                    return <String>[query]; // Ou une chaîne spéciale comme "_ADD_NEW_" si vous préférez la filtrer explicitement
+                  }
+
+                  return suggestions;
+                },
+                onSelected: (String selection) {
+                  print(
+                      '>>> Autocomplete: onSelected appelé avec: "$selection"');
+                  setState(() { // setState pour reconstruire si _payeController change affecte autre chose
+                    _payeController.text = selection;
+                  });
+                  print(
+                      '>>> Autocomplete: onSelected - _payeController.text mis à jour à: "${_payeController
+                          .text}"');
+                },
+                fieldViewBuilder: (BuildContext context,
+                    TextEditingController fieldTextEditingController,
+                    // Contrôleur interne d'Autocomplete
+                    FocusNode fieldFocusNode,
+                    VoidCallback onFieldSubmitted) {
+                  print(
+                      ">>> Autocomplete: fieldViewBuilder construit. fieldTextEditingController.text: '${fieldTextEditingController
+                          .text}', fieldFocusNode.hasFocus: ${fieldFocusNode
+                          .hasFocus}");
+
+                  // Synchronisation initiale si _payeController a une valeur (ex: chargement d'une transaction)
+                  // WidgetsBinding.instance.addPostFrameCallback((_) {
+                  //   if (_payeController.text.isNotEmpty && fieldTextEditingController.text != _payeController.text) {
+                  //      print(">>> fieldViewBuilder postFrameCallback: Synchronisation de fieldTextEditingController avec _payeController.text: ${_payeController.text}");
+                  //     fieldTextEditingController.text = _payeController.text;
+                  //   }
+                  // });
+
+                  fieldFocusNode.addListener(() {
+                    print(
+                        ">>> Autocomplete fieldFocusNode Listener: hasFocus: ${fieldFocusNode
+                            .hasFocus}, fieldTextEditingController.text: '${fieldTextEditingController
+                            .text}'");
+                    if (fieldFocusNode.hasFocus &&
+                        fieldTextEditingController.text.isEmpty) {
+                      // On s'attend à ce que Autocomplete appelle optionsBuilder et ouvre la liste
+                      // car optionsBuilder retourne maintenant _payesConnus.
+                      print(
+                          ">>> Autocomplete fieldFocusNode Listener: A LE FOCUS & TEXTE VIDE. optionsBuilder devrait être appelé.");
+                    }
+                  });
+
+                  return TextField(
+                      controller: fieldTextEditingController,
+                      focusNode: fieldFocusNode,
+                      decoration: InputDecoration(
+                        hintText: 'Payé à / Reçu de',
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12.0, horizontal: 10.0),
+                      ),
                       onTap: () {
-                        // Logique pour choisir un marqueur (peut-être un autre Dropdown ou une modale)
-                        // Pour l'instant, on va simuler un cycle simple via setState
-                        // Ou mieux, utiliser un Dropdown comme pour Enveloppe/Compte
-                        print('Choisir un marqueur...');
+                        print(
+                            ">>> Autocomplete fieldViewBuilder TextField TAPPED! fieldTextEditingController.text: '${fieldTextEditingController
+                                .text}'");
+                        // Si le texte est vide au tap, on veut que la liste s'ouvre.
+                        // Autocomplete devrait le faire si optionsBuilder retourne des options.
+                      },
+                      onChanged: (text) {
+                        print(
+                            '>>> Autocomplete fieldViewBuilder onChanged: text = "$text"');
+                        // Mettre à jour _payeController pour que la logique "Ajouter..." ait la valeur actuelle.
+                        _payeController.value = TextEditingValue(
+                          text: text,
+                          selection: TextSelection.collapsed(offset: text
+                              .length),
+                        );
+                        print(
+                            '>>> Autocomplete fieldViewBuilder onChanged: _payeController mis à jour à: "${_payeController
+                                .text}"');
+                      },
+                      onSubmitted: (value) {
+                        print(
+                            '>>> Autocomplete fieldViewBuilder onSubmitted: value = "$value"');
+                        onFieldSubmitted(); // Important pour que Autocomplete puisse gérer la soumission
                       }
-                  ),
-                  _buildSeparateurDansCarte(),
-                  _buildChampDetail(
-                      icone: Icons.notes_outlined,
-                      libelle: 'Note',
-                      widgetContenu: TextField(
-                        controller: _noteController,
-                        decoration: const InputDecoration(
-                            hintText: 'Ajouter une note (optionnel)',
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 8.0)
+                  );
+                },
+                optionsViewBuilder: (BuildContext context,
+                    AutocompleteOnSelected<String> onSelectedCallback,
+                    Iterable<String> options /* options peut maintenant contenir la query elle-même */) {
+                  print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+                  print('>>> Autocomplete: optionsViewBuilder APPELÉ !');
+                  print('>>> Autocomplete: optionsViewBuilder - options reçues de optionsBuilder: ${options.toList()}');
+                  final String currentValue = _payeController.text.trim();
+                  print('>>> Autocomplete: optionsViewBuilder - _payeController.text (currentValue): "$currentValue"');
+
+                  // Créer les widgets pour les VRAIES suggestions (celles de _payesConnus)
+                  List<Widget> optionWidgets = options
+                      .where((option) => _payesConnus.any((known) => known.toLowerCase() == option.toLowerCase()) || option.toLowerCase() == currentValue.toLowerCase()) // Filtrer pour n'afficher que les vraies suggestions ou la query si elle est la seule "option"
+                      .map((String option) {
+                    // Si l'option est la query elle-même et qu'elle n'est pas une "vraie" suggestion connue,
+                    // on ne veut peut-être pas l'afficher comme une suggestion normale si "Ajouter..." va apparaître.
+                    // Pour l'instant, laissons-la, elle sera surchargée par "Ajouter..." si elle est identique.
+                    return GestureDetector(
+                      onTap: () {
+                        print('>>> Autocomplete optionsViewBuilder: Option "$option" TAPÉE');
+                        onSelectedCallback(option);
+                      },
+                      child: ListTile(
+                        title: Text(option),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 0),
+                        dense: true,
+                      ),
+                    );
+                  }).toList();
+
+                  // Si la seule "option" passée était la query elle-même (pour forcer l'ouverture),
+                  // et que cette query ne correspond à aucun payé connu, alors optionWidgets ne devrait contenir
+                  // que le ListTile pour cette query. On va le remplacer/compléter par "Ajouter..."
+                  // Ou, si options était vide (cas du focus sur champ vide), optionWidgets est vide ici.
+
+                  if (options.length == 1 && options.first.toLowerCase() == currentValue.toLowerCase() && !_payesConnus.any((p) => p.toLowerCase() == currentValue.toLowerCase())) {
+                    print('>>> Autocomplete: optionsViewBuilder - La seule option est la query elle-même ("$currentValue"), et elle n\'est pas dans _payesConnus. On vide optionWidgets pour prioriser "Ajouter..."');
+                    optionWidgets.clear(); // Vider pour que seul "Ajouter..." apparaisse si c'est le cas
+                  }
+
+
+                  print('>>> Autocomplete: optionsViewBuilder - optionWidgets après mapping initial (et filtrage potentiel): ${optionWidgets.length} éléments');
+
+                  // bool alreadyExistsInSuggestions = options.any((opt) => opt.toLowerCase() == currentValue.toLowerCase()); // L'ancienne logique
+                  // NOUVELLE logique pour alreadyExists: on vérifie contre _payesConnus directement
+                  bool isAlreadyAKnownPayee = _payesConnus.any((p) => p.toLowerCase() == currentValue.toLowerCase());
+                  print('>>> Autocomplete: optionsViewBuilder - isAlreadyAKnownPayee (pour "$currentValue" dans _payesConnus): $isAlreadyAKnownPayee');
+
+                  if (currentValue.isNotEmpty && !isAlreadyAKnownPayee) { // <<< CONDITION MODIFIÉE ICI
+                    print('>>> Autocomplete: optionsViewBuilder - Condition "Ajouter..." VRAIE pour "$currentValue". Ajout du widget.');
+                    // Vérifier si un widget pour "currentValue" existe déjà (par le mapping précédent) et le retirer
+                    // pour éviter doublon si "Ajouter currentValue" est plus approprié.
+                    // C'est déjà géré par le clear() plus haut si c'était le seul élément.
+                    optionWidgets.add(
+                        GestureDetector(
+                          onTap: () {
+                            print('>>> Autocomplete optionsViewBuilder: Option "Ajouter $currentValue" TAPÉE');
+                            onSelectedCallback(currentValue);
+                          },
+                          child: ListTile(
+                            title: Text('Ajouter "$currentValue"'),
+                            leading: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 0),
+                            dense: true,
+                          ),
+                        )
+                    );
+                  } else {
+                    print('>>> Autocomplete: optionsViewBuilder - Condition "Ajouter..." FAUSSE pour "$currentValue". isAlreadyAKnownPayee: $isAlreadyAKnownPayee');
+                  }
+                  print('>>> Autocomplete: optionsViewBuilder - optionWidgets après "Ajouter...": ${optionWidgets.length} éléments');
+
+                  // ... reste du code de optionsViewBuilder (SizedBox.shrink, Align, etc.)
+                  if (optionWidgets.isEmpty) {
+                    print(">>> Autocomplete: optionsViewBuilder - optionWidgets est VIDE. currentValue: '$currentValue'. Retourne SizedBox.shrink (Cas 1)");
+                    return const SizedBox.shrink();
+                  }
+
+                  print(">>> Autocomplete: optionsViewBuilder - Va retourner Align avec Material et ListView. Nombre d'options: ${optionWidgets.length}");
+                  print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4.0,
+                      color: cardColor,
+                      shape: cardShape,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 220),
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          shrinkWrap: true,
+                          children: optionWidgets,
                         ),
-                        keyboardType: TextInputType.text,
-                        textCapitalization: TextCapitalization.sentences,
-                        maxLines: 3, // Permet plusieurs lignes pour la note
-                        minLines: 1,
-                      )
-                  )
-                ]
-            )
-        )
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            _buildSeparateurDansCarte(),
+            _buildChampDetail(
+              icone: Icons.wallet_outlined,
+              libelle: 'Enveloppe',
+              widgetContenu: _buildDropdown(
+                  _listeEnveloppes, _enveloppeSelectionnee, (val) {
+                setState(() => _enveloppeSelectionnee = val);
+              }, 'Choisir une enveloppe'),
+            ),
+            _buildSeparateurDansCarte(),
+            _buildChampDetail(
+              icone: Icons.account_balance_outlined,
+              libelle: 'Compte',
+              widgetContenu: _buildDropdown(
+                  _listeComptes, _compteSelectionne, (val) {
+                setState(() => _compteSelectionne = val);
+              }, 'Choisir un compte'),
+            ),
+            _buildSeparateurDansCarte(),
+            _buildChampDetailInteraction(
+              icone: Icons.calendar_today_outlined,
+              libelle: 'Date',
+              valeur: "${_dateSelectionnee.year}-${_dateSelectionnee.month
+                  .toString().padLeft(2, '0')}-${_dateSelectionnee.day
+                  .toString().padLeft(2, '0')}",
+              onTap: _choisirDate,
+            ),
+          ],
+        ),
+      ),
     );
-    // return const Text('Section Options Additionnelles à venir...', style: TextStyle(fontStyle: FontStyle.italic));
   }
 
+  Widget _buildSeparateurDansCarte() {
+    return Divider(height: 0.5, indent: 0, endIndent: 0, color: Theme
+        .of(context)
+        .dividerColor
+        .withOpacity(0.5));
+  }
 
-  Widget _buildChampDetail({required IconData icone, required String libelle, required Widget widgetContenu}) {
-    // Le libellé est actuellement utilisé dans hintText des champs ou dans _buildChampDetailInteraction.
-    // Si vous voulez un libellé visible au-dessus du champ, vous pouvez le décommenter ici.
+  Widget _buildChampDetail(
+      {required IconData icone, required String libelle, required Widget widgetContenu}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0), // Padding vertical réduit pour compacter
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: <Widget>[
-          Icon(icone, color: Colors.grey[500], size: 22), // Icône un peu plus petite
+          Icon(icone, color: Theme
+              .of(context)
+              .iconTheme
+              .color
+              ?.withOpacity(0.7) ?? Colors.grey[500], size: 22),
           const SizedBox(width: 16),
-          Expanded(
-            child: widgetContenu, // Le widgetContenu (TextField, Dropdown) gère son propre hintText/label
-          ),
+          Expanded(child: widgetContenu),
         ],
       ),
     );
   }
 
-  Widget _buildChampDetailInteraction({
-    required IconData icone,
-    required String libelle,
-    required String valeur,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildChampDetailInteraction(
+      {required IconData icone, required String libelle, required String valeur, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12.0), // Padding vertical un peu plus grand
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
         child: Row(
           children: <Widget>[
-            Icon(icone, color: Colors.grey[500], size: 22),
+            Icon(icone, color: Theme
+                .of(context)
+                .iconTheme
+                .color
+                ?.withOpacity(0.7) ?? Colors.grey[500], size: 22),
             const SizedBox(width: 16),
-            Expanded(child: Text(libelle, style: Theme.of(context).textTheme.bodyMedium)),
-            Text(valeur, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w500)),
-            const SizedBox(width: 8),
-            Icon(Icons.arrow_forward_ios, color: Colors.grey[600], size: 16),
+            Expanded(
+              child: Text(valeur, style: Theme
+                  .of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(
+                color: Theme
+                    .of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.color,
+              )),
+            ),
+            Icon(Icons.arrow_drop_down, color: Colors.grey[500]),
           ],
         ),
       ),
@@ -323,17 +518,20 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
 
   Widget _buildDropdown(List<String> items, String? currentValue,
       ValueChanged<String?> onChanged, String hintText) {
-    // Le contentPadding pour le champ fermé (hint/valeur sélectionnée)
-    const EdgeInsets internalContentPadding = EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0); // Valeur de référence
-
+    const EdgeInsets internalContentPadding = EdgeInsets.symmetric(
+        vertical: 10.0, horizontal: 10.0);
     return DropdownButtonFormField<String>(
       value: currentValue,
       items: items.map((String val) {
         return DropdownMenuItem<String>(
           value: val,
-          child: Padding( // AJOUTÉ : Padding pour chaque item dans le menu déroulant
-            padding: EdgeInsets.symmetric(horizontal: internalContentPadding.left), // Utilise la même valeur horizontale
-            child: Text(val, style: Theme.of(context).textTheme.bodyMedium),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+                horizontal: internalContentPadding.left / 2),
+            child: Text(val, style: Theme
+                .of(context)
+                .textTheme
+                .bodyMedium),
           ),
         );
       }).toList(),
@@ -342,109 +540,164 @@ class _EcranAjoutTransactionState extends State<EcranAjoutTransaction> {
         hintText: hintText,
         border: InputBorder.none,
         isDense: true,
-        contentPadding: internalContentPadding, // Applique le padding de référence
+        contentPadding: internalContentPadding,
       ),
       isExpanded: true,
-      // Optionnel: Définir la couleur du fond du menu déroulant si ce n'est pas géré par le thème
-      // dropdownColor: Theme.of(context).cardTheme.color ?? (Theme.of(context).brightness == Brightness.dark ? Colors.grey[800] : Colors.white),
     );
   }
 
-  Widget _buildSeparateurDansCarte() {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      color: (Theme.of(context).brightness == Brightness.dark ? Colors.grey[700] : Colors.grey[300]),
-      indent: 38, // Pour aligner après l'icône
+  Future<void> _choisirDate() async {
+    final DateTime? dateChoisie = await showDatePicker(
+      context: context,
+      initialDate: _dateSelectionnee,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
     );
+    if (dateChoisie != null && dateChoisie != _dateSelectionnee) {
+      setState(() {
+        _dateSelectionnee = dateChoisie;
+      });
+    }
   }
 
+  Widget _buildSectionOptionsAdditionnelles() {
+    final cardColor = Theme
+        .of(context)
+        .cardTheme
+        .color ?? (Theme
+        .of(context)
+        .brightness == Brightness.dark ? Colors.grey[850]! : Colors.white);
+    final cardShape = Theme
+        .of(context)
+        .cardTheme
+        .shape ?? RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12.0),
+    );
+
+    return Card(
+        color: cardColor,
+        shape: cardShape,
+        child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16.0, vertical: 8.0),
+            child: Column(
+              children: [
+                _buildChampDetail(
+                  icone: Icons.flag_outlined,
+                  libelle: 'Marqueur',
+                  widgetContenu: _buildDropdown(
+                    _listeMarqueurs,
+                    _marqueurSelectionne,
+                        (val) {
+                      setState(() => _marqueurSelectionne = val);
+                    },
+                    'Choisir un marqueur',
+                  ),
+                ),
+                _buildSeparateurDansCarte(),
+                _buildChampDetail(
+                    icone: Icons.notes_outlined,
+                    libelle: 'Note',
+                    widgetContenu: TextField(
+                      controller: _noteController,
+                      decoration: const InputDecoration(
+                          hintText: 'Ajouter une note (optionnel)',
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                              vertical: 8.0, horizontal: 10.0)),
+                      keyboardType: TextInputType.text,
+                      textCapitalization: TextCapitalization.sentences,
+                      maxLines: 3,
+                      minLines: 1,
+                    ))
+              ],
+            ))
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Le thème global de main.dart devrait gérer le fond, etc.
-    // final Color fondEcran = Theme.of(context).scaffoldBackgroundColor;
-
+    print("--- ECRAN BUILD RECONSTRUIT ---");
     return Scaffold(
-      // backgroundColor: fondEcran, // Géré par le thème
       appBar: AppBar(
-        // backgroundColor: Theme.of(context).appBarTheme.backgroundColor, // Géré par le thème
-        // elevation: Theme.of(context).appBarTheme.elevation, // Géré par le thème
-        leading: IconButton(
-          icon: const Icon(Icons.close /*, color: Theme.of(context).appBarTheme.iconTheme?.color*/), // Géré par le thème
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-        ),
-        title: const Text('Ajouter une Transaction'/*, style: Theme.of(context).appBarTheme.titleTextStyle*/), // Géré par le thème
-        centerTitle: true,
+        title: const Text('Ajouter Transaction'),
       ),
       body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-          Center(child: _buildSelecteurTypeTransaction()),
-      _buildChampMontant(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Center(child: _buildSelecteurTypeTransaction()),
+            _buildChampMontant(),
+            _buildSectionInformationsCles(),
+            const SizedBox(height: 20),
+            Text(
+              'Options additionnelles',
+              style: Theme
+                  .of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            _buildSectionOptionsAdditionnelles(),
+            const SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: () {
+                print('--- BOUTON SAUVEGARDER PRESSÉ ---');
+                print('Type: $_typeSelectionne');
+                print('Montant: ${_montantController.text}');
+                print('Payé/Reçu de: ${_payeController
+                    .text}'); // Devrait avoir la valeur sélectionnée ou ajoutée
+                print('Enveloppe: $_enveloppeSelectionnee');
+                print('Compte: $_compteSelectionne');
+                print('Date: $_dateSelectionnee');
+                print('Marqueur: $_marqueurSelectionne');
+                print('Note: ${_noteController.text}');
 
-      _buildSectionInformationsCles(),
-      const SizedBox(height: 16),
-      _buildSectionOptionsAdditionnelles(), // Placeholder pour l'instant
+                // Logique pour ajouter à _payesConnus si c'est une nouvelle entrée et sélectionnée via "Ajouter..."
+                // Cela est géré implicitement par le onSelected qui met à jour _payeController.
+                // Si l'utilisateur a tapé "Nouveau Payé" et cliqué sur "Ajouter Nouveau Payé",
+                // alors _payeController.text sera "Nouveau Payé".
+                // Il faut s'assurer que _payesConnus est réellement mis à jour AVANT la sauvegarde si nécessaire.
 
-      const SizedBox(height: 30),
-      ],
-    ),
-    ),
-    bottomNavigationBar: Padding(
-    padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + MediaQuery.of(context).padding.bottom), // Ajoute le padding du bas de l'écran (pour notch, etc.)
-    child: ElevatedButton.icon(
-    icon: const Icon(Icons.check), // La couleur vient du foregroundColor du thème du bouton
-    label: const Text(
-    'Enregistrer',
-    // Le style du texte vient du thème du bouton, sauf si surchargé ici
-    // style: TextStyle(fontSize: 18), // Exemple de surcharge de taille
-    ),
-    onPressed: () {
-    // TODO: Logique d'enregistrement complète
-    print('Type: $_typeSelectionne');
-    print('Montant: ${_montantController.text}');
-    print('Payé: ${_payeController.text}');
-    print('Enveloppe: $_enveloppeSelectionnee');
-    print('Compte: $_compteSelectionne');
-    print('Date: $_dateSelectionnee');
-    print('Marqueur: $_marqueurSelectionne');
-    print('Note: ${_noteController.text}');
+                final String finalPayeValue = _payeController.text.trim();
+                if (finalPayeValue.isNotEmpty &&
+                    !_payesConnus.any((p) =>
+                    p.toLowerCase() ==
+                        finalPayeValue.toLowerCase())) {
+                  print(
+                      'Sauvegarde: "$finalPayeValue" est un nouveau payé, ajout à _payesConnus.');
+                  setState(() { // setState pour que la liste soit à jour pour la prochaine fois
+                    _payesConnus.add(finalPayeValue);
+                    // _savePayesConnus(); // Sauvegarder si la persistance est active
+                  });
+                  print(
+                      '_payesConnus après ajout par sauvegarde: $_payesConnus');
+                }
 
-    // Validation des champs importants
-    if (_montantController.text.isEmpty || double.tryParse(_montantController.text.replaceAll(',', '.')) == 0.0) {
-    ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Veuillez entrer un montant valide.'))
-    );
-    return;
-    }
-    if (_payeController.text.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Veuillez indiquer la provenance.'))
-    );
-    return;
-    }
-    // ... autres validations (enveloppe, compte peuvent être optionnels ou non selon votre logique)
 
-    // Si tout est valide, sauvegarder et fermer
-    // Navigator.of(context).pop(); // Exemple de fermeture après sauvegarde
-    },
-    // Le style du bouton vient du elevatedButtonTheme global
-    // Vous pouvez toujours surcharger ici si ce bouton doit être différent:
-    // style: ElevatedButton.styleFrom(
-    //   backgroundColor: Theme.of(context).colorScheme.primary,
-    //   padding: const EdgeInsets.symmetric(vertical: 16.0),
-    //   textStyle: const TextStyle(fontSize: 18),
-    //   shape: RoundedRectangleBorder(
-    //     borderRadius: BorderRadius.circular(30.0),
-    //   ),
-    // ),
-    ),
-    ),
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  textStyle: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25.0),
+                  )),
+              child: const Text('Sauvegarder'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
