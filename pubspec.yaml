@@ -17,7 +17,7 @@ dependencies: # Niveau d'indentation principal
   firebase_auth: ^5.6.0
   shared_preferences: ^2.2.3 # Vérifiez que cette ligne est correctement indentée sous dependencies
   flutter_colorpicker: ^1.1.0
-
+  intl: ^0.20.2
 
 
 dev_dependencies: # DOIT ÊTRE À CE NIVEAU D'INDENTATION

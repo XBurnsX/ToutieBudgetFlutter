@@ -155,7 +155,6 @@ class _EcranListeComptesState extends State<EcranListeComptes> {
     final comptesInvestissements = getComptesInvestissements();
     final soldeTotalInvestissements = getSoldeTotalInvestissements();
 
-
     return Scaffold(
       body: ListView(
         children: <Widget>[
@@ -185,27 +184,27 @@ class _EcranListeComptesState extends State<EcranListeComptes> {
           // ... Vos Dividers et Paddings ...
           const Padding(padding: EdgeInsets.symmetric(vertical: 8.0)),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
             child: Divider(color: Theme
                 .of(context)
                 .dividerColor,
-                thickness: 1,
+                thickness: 3,
                 height: 20,
                 indent: 16,
                 endIndent: 16),
           ),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0)),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 4.0)),
 
           // SECTION "ARGENT COMPTANT"
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(/* ... Titre Argent Comptant ... */
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Argent Comptant',
+                    Text('\t\t\t\tArgent Comptant',
                         style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold)),
                     Text(
@@ -265,16 +264,16 @@ class _EcranListeComptesState extends State<EcranListeComptes> {
           ),
           // ... Vos Dividers et Paddings ...
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
             child: Divider(color: Theme
                 .of(context)
                 .dividerColor,
-                thickness: 1,
+                thickness: 3,
                 height: 20,
                 indent: 16,
                 endIndent: 16),
           ),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0)),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 4.0)),
 
           // --- SECTION DETTES ---
           Padding(
@@ -286,7 +285,7 @@ class _EcranListeComptesState extends State<EcranListeComptes> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Dettes', // Le titre de la section reste "Dettes"
+                      '\t\tDettes', // Le titre de la section reste "Dettes"
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -349,27 +348,27 @@ class _EcranListeComptesState extends State<EcranListeComptes> {
           ),
           // ... Vos Dividers et Paddings ...
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
             child: Divider(color: Theme
                 .of(context)
                 .dividerColor,
-                thickness: 1,
+                thickness: 3,
                 height: 20,
                 indent: 16,
                 endIndent: 16),
           ),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0)),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 4.0)),
 
           // --- SECTION INVESTISSEMENTS ---
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(/* ... Titre Investissements ... */
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Investissements',
+                    Text('\t\t\t\tInvestissements',
                         style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold)),
                     Text(
