@@ -100,6 +100,7 @@ class _EcranAccueilState extends State<EcranAccueil> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${_titresAppBar[_indiceSelectionne]}'),
+        centerTitle: true,
       ),
       body: Center(
         child: _optionsDesPagesPrincipales.elementAt(_indiceSelectionne),
