@@ -19,49 +19,34 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     // Définissons nos couleurs personnalisées
     const Color couleurFondSombre = Color(0xFF121212); // Un noir pas tout à fait 0x000000, un peu plus doux
-    const Color couleurPrimaireRouge = Colors.redAccent; // Ou un rouge plus spécifique ex: const Color(0xFFD32F2F);
+    const Color couleurPrimaire = Color(0xFF830101); // Ou un rouge plus spécifique ex: const Color(0xFFD32F2F);
     const Color couleurTexteBlanc = Colors.white;
     const Color couleurSurfaceSombre = Color(0xFF1E1E1E); // Pour les surfaces comme les Cards, dialogues
 
     return MaterialApp(
       title: 'Mon Budget Facile',
-      theme: ThemeData(
+      theme: ThemeData( // <<< DÉBUT DU CONSTRUCTEUR ThemeData
         brightness: Brightness.dark,
-        // Indique que c'est un thème sombre globalement
         scaffoldBackgroundColor: couleurFondSombre,
-        // Couleur de fond principale pour les Scaffold
-        primaryColor: couleurPrimaireRouge,
-        // Couleur principale (utilisée par certains widgets)
-
-        // ColorScheme est plus puissant et recommandé pour Material 3
+        primaryColor: couleurPrimaire,
         colorScheme: ColorScheme.dark(
-          primary: couleurPrimaireRouge,
-          // Couleur principale pour les éléments interactifs
+          primary: couleurPrimaire,
           onPrimary: couleurTexteBlanc,
-          // Couleur du texte/icônes SUR la couleur primaire (ex: texte sur bouton rouge)
-
-          secondary: couleurPrimaireRouge,
-          // Peut être la même ou une autre couleur d'accentuation
+          secondary: couleurPrimaire,
           onSecondary: couleurTexteBlanc,
-          // Texte/icônes SUR la couleur secondaire
-
           surface: couleurSurfaceSombre,
-          // Couleur des "surfaces" (cartes, dialogues, menus)
           onSurface: couleurTexteBlanc,
-          // Texte/icônes SUR les surfaces
-
           background: couleurFondSombre,
-          // Couleur de fond générale
           onBackground: couleurTexteBlanc,
-          // Texte/icônes SUR le fond général
-
           error: Colors.red[700]!,
-          // Couleur pour les erreurs
-          onError: couleurTexteBlanc, // Texte/icônes SUR la couleur d'erreur
-        ),
+          onError: couleurTexteBlanc,
+          outline: couleurPrimaire.withAlpha(150),
+        ), // <<< FIN de colorScheme
+
+        dividerColor: couleurPrimaire, // VOTRE dividerColor EST BIEN ICI
 
         // Thème pour l'AppBar
-        appBarTheme: const AppBarTheme(
+        appBarTheme: const AppBarTheme( // <<< DOIT ÊTRE À L'INTÉRIEUR DE ThemeDat
           backgroundColor: couleurSurfaceSombre,
           // Fond des AppBars
           elevation: 0,
@@ -94,7 +79,7 @@ class MyApp extends StatelessWidget {
         // Thème pour les boutons (ElevatedButton, TextButton, OutlinedButton)
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: couleurPrimaireRouge,
+            backgroundColor: couleurPrimaire,
             // Fond des ElevatedButton
             foregroundColor: couleurTexteBlanc,
             // Couleur du texte et de l'icône du bouton
@@ -112,14 +97,14 @@ class MyApp extends StatelessWidget {
 
         // Thème pour les FloatingActionButtons
         floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: couleurPrimaireRouge,
+          backgroundColor: couleurPrimaire,
           foregroundColor: couleurTexteBlanc,
         ),
 
         // Thème pour la BottomNavigationBar
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
           backgroundColor: couleurSurfaceSombre,
-          selectedItemColor: couleurPrimaireRouge,
+          selectedItemColor: couleurPrimaire,
           // Couleur de l'item sélectionné
           unselectedItemColor: Colors.grey[500],
           // Couleur des items non sélectionnés
@@ -140,7 +125,7 @@ class MyApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8.0),
-            borderSide: BorderSide(color: couleurPrimaireRouge,
+            borderSide: BorderSide(color: couleurPrimaire,
                 width: 2.0), // Bordure rouge quand focus
           ),
           // contentPadding: EdgeInsets.symmetric(vertical: 14.0, horizontal: 12.0),
