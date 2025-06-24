@@ -2,8 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+
 // IMPORTANT: L'import pour TypeObjectif depuis sa source de vérité
 import 'package:toutie_budget/pages/gestion_categories_enveloppes_screen.dart' show TypeObjectif;
+
 
 // La fonction d'aide est définie ici, au niveau supérieur (en dehors de toute classe)
 String typeObjectifToString(TypeObjectif type) {
@@ -18,6 +20,7 @@ String typeObjectifToString(TypeObjectif type) {
   }
 }
 
+
 // La fonction de conversion est définie ici, au niveau supérieur
 TypeObjectif stringToTypeObjectif(String? value) {
   switch (value?.toLowerCase()) {
@@ -30,6 +33,7 @@ TypeObjectif stringToTypeObjectif(String? value) {
       return TypeObjectif.aucun;
   }
 }
+
 
 class EnveloppeUIData {
   final String id;
@@ -44,8 +48,10 @@ class EnveloppeUIData {
   final int couleurSoldeCompteValue;
   final int ordre;
 
+
   static const int _defaultCouleurThemeValue = 0xFF2196F3;
   static const int _defaultCouleurSoldeCompteValue = 0xFF9E9E9E;
+
 
   EnveloppeUIData({
     required this.id,
@@ -61,10 +67,12 @@ class EnveloppeUIData {
     this.ordre = 0,
   });
 
+
   IconData? get icone =>
       iconeCodePoint != null ? IconData(iconeCodePoint!, fontFamily: 'MaterialIcons') : null;
   Color get couleurTheme => Color(couleurThemeValue);
   Color get couleurSoldeCompte => Color(couleurSoldeCompteValue);
+
 
   Map<String, dynamic> toMap() {
     return {
@@ -81,6 +89,7 @@ class EnveloppeUIData {
       'ordre': ordre,
     };
   }
+
 
   factory EnveloppeUIData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     Map<String, dynamic> data = doc.data()!;
@@ -99,6 +108,7 @@ class EnveloppeUIData {
     );
   }
 
+
   factory EnveloppeUIData.fromMap(Map<String, dynamic> map) {
     return EnveloppeUIData(
       id: map['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
@@ -116,22 +126,23 @@ class EnveloppeUIData {
   }
 }
 
+
 class EnveloppeCard extends StatelessWidget {
   final EnveloppeUIData enveloppe;
   final VoidCallback? onTap; // <--- NOUVEAU PARAMÈTRE
+
 
   const EnveloppeCard({
     Key? key,
     required this.enveloppe,
     this.onTap, // <--- AJOUTEZ-LE AU CONSTRUCTEUR
   }) : super(key: key);
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currencyFormatter = NumberFormat.currency(locale: 'fr_CA', symbol: '\$');
+    final currencyFormatter = NumberFormat.currency(
+        locale: 'fr_CA', symbol: '\$');
 
-    // Détermination des couleurs pour la bulle de solde
     Color couleurFondBulleSolde;
     Color couleurTexteBulleSolde;
 
@@ -146,7 +157,6 @@ class EnveloppeCard extends StatelessWidget {
       couleurTexteBulleSolde = enveloppe.couleurSoldeCompte;
     }
 
-    // Détermination de la couleur de la barre latérale
     Color couleurBarreLaterale;
     if (enveloppe.soldeActuel < 0) {
       couleurBarreLaterale = Colors.red.shade700;
@@ -181,17 +191,18 @@ class EnveloppeCard extends StatelessWidget {
           couleurBarreLaterale = Colors.yellow.shade700;
         } else if (enveloppe.soldeActuel > 0) {
           couleurBarreLaterale = Colors.green.shade500;
-        } else {
+        }
+        else {
           couleurBarreLaterale = Colors.grey.shade400;
         }
       } else if (enveloppe.soldeActuel > 0) {
         couleurBarreLaterale = Colors.green.shade500;
-      } else {
+      }
+      else {
         couleurBarreLaterale = Colors.grey.shade400;
       }
     }
 
-    // Calculs pour la barre de progression et messages
     double progressionValue = 0;
     String messageObjectifText = '';
     String messageSousBarreText = '';
@@ -202,8 +213,7 @@ class EnveloppeCard extends StatelessWidget {
           enveloppe.montantCible != null &&
           enveloppe.montantCible! > 0) {
         if (enveloppe.dateCible != null) {
-          messageObjectifText =
-          '${currencyFormatter.format(
+          messageObjectifText = '${currencyFormatter.format(
               enveloppe.montantCible)} d\'ici le ${DateFormat('d', 'fr_CA')
               .format(enveloppe.dateCible!)}';
         } else {
@@ -212,8 +222,7 @@ class EnveloppeCard extends StatelessWidget {
         }
         progressionValue =
             (enveloppe.montantAlloue / enveloppe.montantCible!).clamp(0.0, 1.0);
-        messageSousBarreText =
-        '${currencyFormatter.format(
+        messageSousBarreText = '${currencyFormatter.format(
             enveloppe.montantAlloue)} / ${currencyFormatter.format(
             enveloppe.montantCible)} alloué(s)';
         afficherBarreProgressionPrincipale = true;
@@ -221,8 +230,7 @@ class EnveloppeCard extends StatelessWidget {
           enveloppe.montantCible != null &&
           enveloppe.montantCible! > 0) {
         if (enveloppe.dateCible != null) {
-          messageObjectifText =
-          '${currencyFormatter.format(
+          messageObjectifText = '${currencyFormatter.format(
               enveloppe.montantCible)} d\'ici le ${DateFormat('d', 'fr_CA')
               .format(enveloppe.dateCible!)}';
         } else {
@@ -231,40 +239,35 @@ class EnveloppeCard extends StatelessWidget {
         }
         progressionValue =
             (enveloppe.soldeActuel / enveloppe.montantCible!).clamp(0.0, 1.0);
-        messageSousBarreText =
-        '${currencyFormatter.format(
+        messageSousBarreText = '${currencyFormatter.format(
             enveloppe.soldeActuel)} / ${currencyFormatter.format(
             enveloppe.montantCible)} épargné(s)';
         afficherBarreProgressionPrincipale = true;
       } else if (enveloppe.typeObjectif == TypeObjectif.aucun &&
-          enveloppe.montantAlloue > 0 &&
-          enveloppe.soldeActuel >= 0) {
+          enveloppe.montantAlloue > 0 && enveloppe.soldeActuel >= 0) {
         progressionValue = ((enveloppe.montantAlloue - enveloppe.soldeActuel) /
             enveloppe.montantAlloue).clamp(0.0, 1.0);
-        messageSousBarreText =
-        '${currencyFormatter.format(enveloppe.montantAlloue -
-            enveloppe.soldeActuel)} dépensé(s) / ${currencyFormatter.format(
+        messageSousBarreText = '${currencyFormatter.format(
+            enveloppe.montantAlloue -
+                enveloppe.soldeActuel)} dépensé(s) / ${currencyFormatter.format(
             enveloppe.montantAlloue)}';
         afficherBarreProgressionPrincipale = enveloppe.montantAlloue > 0;
       }
     }
-
-    if (messageSousBarreText.isEmpty &&
-        enveloppe.soldeActuel != 0 &&
-        enveloppe.typeObjectif == TypeObjectif.aucun &&
-        !(enveloppe.montantAlloue > 0 && enveloppe.soldeActuel >= 0)) {
+    if (messageSousBarreText.isEmpty && enveloppe.soldeActuel != 0 &&
+        enveloppe.typeObjectif == TypeObjectif.aucun) {
       messageSousBarreText =
       'Report: ${currencyFormatter.format(enveloppe.soldeActuel)}';
     }
 
     Color couleurProgression = couleurBarreLaterale;
-    if (couleurBarreLaterale == Colors.grey.shade400 &&
-        afficherBarreProgressionPrincipale) {
+    if (couleurBarreLaterale == Colors.grey.shade400) {
       couleurProgression = Colors.grey.shade600;
     }
 
-    const double paddingVerticalInterneCompact = 1.0;
-    const double paddingVerticalSousBarreCompact = 0.5;
+    // AJUSTER les paddings verticaux pour compacter
+    const double paddingVerticalInterneCompact = 1.0; // Réduire de 2.0 à 1.0 ou 1.5
+    const double paddingVerticalSousBarreCompact = 0.5; // Réduire de 1.0 à 0.5 ou garder 1.0
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
@@ -277,17 +280,18 @@ class EnveloppeCard extends StatelessWidget {
             Expanded(
               child: InkWell(
                 onTap: () {
-                  print('Carte ${enveloppe.nom} cliquée (ID: ${enveloppe.id})');
+                  print('Carte ${enveloppe.nom} cliquée');
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8.0, vertical: 10.0),
+                  // Garder le padding global
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Row(
+                      Row( // Titre et solde
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           if (enveloppe.icone != null)
@@ -305,8 +309,7 @@ class EnveloppeCard extends StatelessWidget {
                                 letterSpacing: 0.1,
                                 color: theme.colorScheme.onSurface,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -328,11 +331,17 @@ class EnveloppeCard extends StatelessWidget {
                           ),
                         ],
                       ),
+
+                      // Espacement après le titre/solde, avant les détails de l'objectif (si présents)
+                      // On peut légèrement le réduire aussi si messageObjectifText est présent
                       if (messageObjectifText.isNotEmpty ||
                           afficherBarreProgressionPrincipale)
                         const SizedBox(height: 2.0),
+                      // était implicite ou via padding top du premier élément
+
                       if (messageObjectifText.isNotEmpty)
                         Padding(
+                          // MODIFIÉ: padding vertical réduit
                           padding: const EdgeInsets.only(
                               top: paddingVerticalInterneCompact,
                               bottom: paddingVerticalInterneCompact),
@@ -342,12 +351,12 @@ class EnveloppeCard extends StatelessWidget {
                                 color: theme.colorScheme.onSurfaceVariant
                                     .withOpacity(0.9),
                                 fontStyle: FontStyle.italic),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       if (afficherBarreProgressionPrincipale)
                         Padding(
+                          // MODIFIÉ: padding vertical réduit
                           padding: const EdgeInsets.only(
                               top: paddingVerticalInterneCompact,
                               bottom: paddingVerticalInterneCompact),
@@ -373,6 +382,7 @@ class EnveloppeCard extends StatelessWidget {
                         ),
                       if (messageSousBarreText.isNotEmpty)
                         Padding(
+                          // MODIFIÉ: padding top réduit
                           padding: const EdgeInsets.only(
                               top: paddingVerticalSousBarreCompact),
                           child: Text(
@@ -380,8 +390,7 @@ class EnveloppeCard extends StatelessWidget {
                             style: theme.textTheme.labelSmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant
                                     .withOpacity(0.7)),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                         ),
                     ],
