@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:toutie_budget/models/categorie_budget_model.dart';
-import 'package:toutie_budget/models/compte_model.dart'; // Nécessaire pour la logique d'affichage initial
+import 'package:toutie_budget/models/compte_model.dart';
+// import 'package:intl/intl.dart'; // Décommentez si vous utilisez currencyFormatter
 
 class BudgetCategoriesList extends StatefulWidget {
   final List<CategorieBudgetModel> categories;
-  final List<
-      Compte> comptesActuels; // Pour la logique d'affichage "Commencez..."
-  final bool isLoading; // Pour afficher un indicateur de chargement si nécessaire
+  final List<Compte> comptesActuels;
+  final bool isLoading;
+  final VoidCallback? onCreerCategorieDemandee; // Callback pour demander la création
 
   const BudgetCategoriesList({
     super.key,
     required this.categories,
     required this.comptesActuels,
     required this.isLoading,
+    this.onCreerCategorieDemandee, // Accepter le callback
   });
 
   @override
@@ -20,8 +22,9 @@ class BudgetCategoriesList extends StatefulWidget {
 }
 
 class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
-  // L'état de dépliage est maintenant géré à l'intérieur de ce widget
   Map<String, bool> _etatsDepliageCategories = {};
+
+  // final currencyFormatter = NumberFormat.currency(locale: 'fr_CA', symbol: '\$'); // Définissez votre formateur ici si besoin
 
   @override
   void initState() {
@@ -32,35 +35,29 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
   @override
   void didUpdateWidget(covariant BudgetCategoriesList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Si la liste des catégories change, réinitialiser les états de dépliage
-    // Cela évite de garder des états pour des catégories qui n'existent plus
-    // ou d'en manquer pour de nouvelles.
     if (widget.categories.length != oldWidget.categories.length ||
-        !widget.categories
-            .every((cat) =>
-            oldWidget.categories.any((oldCat) => oldCat.id == cat.id))) {
+        !widget.categories.every(
+                (cat) =>
+                oldWidget.categories.any((oldCat) => oldCat.id == cat.id))) {
       _initialiserEtatsDepliage();
     }
   }
 
   void _initialiserEtatsDepliage() {
-    _etatsDepliageCategories = Map.fromIterable(
-      widget.categories,
-      key: (item) => (item as CategorieBudgetModel).id,
-      value: (item) =>
-      _etatsDepliageCategories[(item as CategorieBudgetModel).id] ?? false,
-      // Conserve l'état existant si possible, sinon false
-    );
+    // Conserve l'état existant si possible, sinon initialise à false
+    _etatsDepliageCategories = {
+      for (var categorie in widget.categories)
+        categorie.id: _etatsDepliageCategories[categorie.id] ?? false,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    bool aucunCompteAvecSolde = widget.comptesActuels
+    bool aucunCompteAvecSoldeInitialement = widget.comptesActuels
         .where((c) => c.soldeActuel != 0)
         .isEmpty;
 
-    // ----- Logique d'affichage des messages ou du loader -----
     if (widget.isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 40.0),
@@ -68,80 +65,92 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
       );
     }
 
-    if (widget.categories.isEmpty && aucunCompteAvecSolde) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.category_outlined, size: 60, color: Colors.grey[600]),
-              const SizedBox(height: 16),
-              Text(
-                'Commencez par créer des catégories',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                    color: Colors.grey[700]),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Organisez votre budget en allouant des fonds à différentes catégories et enveloppes.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text('Créer une catégorie'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 12),
-                ),
-                onPressed: () {
-                  print(
-                      'Naviguer vers la création de catégorie (depuis BudgetCategoriesList)');
-                  // TODO: Idéalement, ce bouton devrait appeler un callback
-                  // passé en paramètre pour gérer la navigation dans EcranBudget
-                  // Exemple: widget.onCreerCategorie?.call();
-                },
-              ),
-            ],
-          ),
-        ),
+    // Cas 1: Aucune catégorie ET aucun compte avec solde (tout début)
+    if (widget.categories.isEmpty && aucunCompteAvecSoldeInitialement) {
+      return _buildEmptyState(
+        theme: theme,
+        icon: Icons.category_outlined,
+        title: 'Commencez par créer des catégories',
+        subtitle:
+        'Organisez votre budget en allouant des fonds à différentes catégories et enveloppes.',
+        buttonLabel: 'Créer une catégorie',
+        onButtonPressed: widget.onCreerCategorieDemandee,
       );
     }
 
-    if (widget.categories.isEmpty && !aucunCompteAvecSolde) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
-        child: Center(
-          child: Text(
-            'Aucune catégorie budgétaire pour ce mois.\nCommencez par en ajouter une !',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.grey[600]),
-          ),
-        ),
+    // Cas 2: Aucune catégorie MAIS des comptes avec solde existent
+    if (widget.categories.isEmpty && !aucunCompteAvecSoldeInitialement) {
+      return _buildEmptyState(
+        theme: theme,
+        icon: Icons.add_box_outlined,
+        // Icône différente pour suggérer l'ajout
+        title: 'Aucune catégorie budgétaire',
+        subtitle: 'Ajoutez des catégories pour commencer à répartir vos fonds.',
+        buttonLabel: 'Ajouter une catégorie',
+        onButtonPressed: widget.onCreerCategorieDemandee,
       );
     }
 
     // ----- Affichage de la liste des catégories -----
     return Column(
-      children: widget.categories.map((categorie) =>
-          _buildCategorieItem(theme, categorie)).toList(),
+      children: widget.categories
+          .map((categorie) => _buildCategorieItem(theme, categorie))
+          .toList(),
+    );
+  } // Widget helper pour les états vides pour éviter la répétition
+  Widget _buildEmptyState({
+    required ThemeData theme,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String buttonLabel,
+    VoidCallback? onButtonPressed,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 60, color: Colors.grey[600]),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                  color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.add_circle_outline),
+              label: Text(buttonLabel),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                textStyle: theme.textTheme.labelLarge,
+              ),
+              onPressed: onButtonPressed ?? () {
+                print(
+                    '$buttonLabel cliqué (action par défaut dans BudgetCategoriesList)');
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  // Les méthodes _buildCategorieItem et _buildEnveloppeItem sont copiées ici
-  // depuis _EcranBudgetState, avec quelques ajustements minimes.
-
   Widget _buildCategorieItem(ThemeData theme, CategorieBudgetModel categorie) {
     bool estDeplie = _etatsDepliageCategories[categorie.id] ?? false;
-    // La logique de calcul de progression, couleurDeBase, couleurBarreEtTexteDisponible
-    // reste la même que dans EcranBudget.
     double progression = 0;
     if (categorie.alloueTotal > 0) {
       progression = categorie.depenseTotal / categorie.alloueTotal;
@@ -154,30 +163,33 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
     if (categorie.disponibleTotal < 0) {
       couleurBarreEtTexteDisponible = Colors.red[400]!;
     } else if (progression == 1.0) {
-      couleurBarreEtTexteDisponible =
-          HSLColor.fromColor(couleurDeBase).withSaturation(0.7).withLightness(
-              HSLColor
-                  .fromColor(couleurDeBase)
-                  .lightness * 0.9).toColor();
+      couleurBarreEtTexteDisponible = HSLColor.fromColor(couleurDeBase)
+          .withSaturation(0.7)
+          .withLightness(HSLColor
+          .fromColor(couleurDeBase)
+          .lightness * 0.9)
+          .toColor();
     } else if (progression > 0.85) {
-      couleurBarreEtTexteDisponible =
-          HSLColor.fromColor(couleurDeBase).withLightness((HSLColor
+      couleurBarreEtTexteDisponible = HSLColor.fromColor(couleurDeBase)
+          .withLightness(
+          (HSLColor
               .fromColor(couleurDeBase)
-              .lightness * 0.85).clamp(0.0, 1.0)).toColor();
+              .lightness * 0.85).clamp(0.0, 1.0))
+          .toColor();
     }
 
     return Column(
       children: [
         InkWell(
           onTap: () {
-            setState(() { // setState est maintenant celui de _BudgetCategoriesListState
+            setState(() {
               _etatsDepliageCategories[categorie.id] = !estDeplie;
             });
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16.0, vertical: 12.0),
-            color: Colors.grey[850], // Ou la couleur de votre choix
+            padding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            color: Colors.grey[850], // Couleur de fond pour la catégorie
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -195,14 +207,16 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
                       ),
                     ),
                     Text(
+                      // currencyFormatter.format(categorie.disponibleTotal), // Utilisez ceci si vous avez intl
                       '${categorie.disponibleTotal.toStringAsFixed(2)} \$',
                       style: theme.textTheme.titleMedium?.copyWith(
                           color: couleurBarreEtTexteDisponible,
                           fontWeight: FontWeight.bold),
                     ),
                     Icon(
-                      estDeplie ? Icons.keyboard_arrow_down : Icons
-                          .keyboard_arrow_right,
+                      estDeplie
+                          ? Icons.keyboard_arrow_down
+                          : Icons.keyboard_arrow_right,
                       color: Colors.white70,
                     ),
                   ],
@@ -211,8 +225,8 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
                   const SizedBox(height: 4),
                   Text(
                     categorie.info,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white70),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: Colors.white70),
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -230,7 +244,8 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
         ),
         if (estDeplie)
           Container(
-            color: Colors.grey[900], // Ou la couleur de votre choix
+            color: Colors.grey[900],
+            // Couleur de fond pour les enveloppes dépliées
             child: Column(
               children: categorie.enveloppes.map((enveloppe) {
                 return _buildEnveloppeItem(theme, enveloppe, couleurDeBase);
@@ -244,8 +259,6 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
 
   Widget _buildEnveloppeItem(ThemeData theme, EnveloppeModel enveloppe,
       Color couleurCategorieParente) {
-    // La logique de calcul de progression, couleurDeBaseEnveloppe, couleurBarreEtTexteDisponibleEnveloppe
-    // reste la même que dans EcranBudget.
     double progression = 0;
     if (enveloppe.montantAlloue > 0) {
       progression = (enveloppe.depense / enveloppe.montantAlloue);
@@ -253,9 +266,13 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
     progression = progression.clamp(0.0, 1.0);
 
     Color couleurDeBaseEnveloppe = enveloppe.couleur ??
-        HSLColor.fromColor(couleurCategorieParente).withLightness((HSLColor
-            .fromColor(couleurCategorieParente)
-            .lightness * 0.8).clamp(0.0, 1.0)).toColor();
+        HSLColor.fromColor(couleurCategorieParente)
+            .withLightness(
+            (HSLColor
+                .fromColor(couleurCategorieParente)
+                .lightness * 0.8)
+                .clamp(0.0, 1.0))
+            .toColor();
     Color couleurBarreEtTexteDisponibleEnveloppe = couleurDeBaseEnveloppe;
 
     if (enveloppe.disponible < 0) {
@@ -268,19 +285,23 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
               .toColor();
     } else if (progression > 0.85) {
       couleurBarreEtTexteDisponibleEnveloppe =
-          HSLColor.fromColor(couleurDeBaseEnveloppe).withLightness((HSLColor
-              .fromColor(couleurDeBaseEnveloppe)
-              .lightness * 0.9).clamp(0.0, 1.0)).toColor();
+          HSLColor.fromColor(couleurDeBaseEnveloppe)
+              .withLightness(
+              (HSLColor
+                  .fromColor(couleurDeBaseEnveloppe)
+                  .lightness * 0.9)
+                  .clamp(0.0, 1.0))
+              .toColor();
     }
 
-    return Material(
-      color: Colors.transparent,
+    return Material( // Permet d'avoir un effet InkWell sur une couleur de fond personnalisée
+      color: Colors.transparent, // Le Container parent gère la couleur de fond
       child: InkWell(
         onTap: () {
           print('Enveloppe ${enveloppe
               .nom} cliquée (depuis BudgetCategoriesList)');
           // TODO: Gérer la navigation/action, potentiellement via un callback
-          // widget.onEnveloppeTap?.call(enveloppe);
+          // Exemple: widget.onEnveloppeTap?.call(enveloppe);
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
@@ -292,19 +313,21 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
                   if (enveloppe.icone != null) ...[
                     Icon(enveloppe.icone,
                         color: HSLColor.fromColor(couleurDeBaseEnveloppe)
-                            .withAlpha(200)
-                            .toColor(), size: 20),
+                            .withAlpha(200) // Un peu transparent pour l'icône
+                            .toColor(),
+                        size: 20),
                     const SizedBox(width: 12),
                   ],
                   Expanded(
                     child: Text(
                       enveloppe.nom,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                          color: Colors.white),
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(color: Colors.white),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
+                    // currencyFormatter.format(enveloppe.disponible), // Utilisez ceci si vous avez intl
                     '${enveloppe.disponible.toStringAsFixed(2)} \$',
                     style: theme.textTheme.titleSmall?.copyWith(
                         color: couleurBarreEtTexteDisponibleEnveloppe,
@@ -316,19 +339,21 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
                   enveloppe.messageSous!.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Padding(
-                  padding: EdgeInsets.only(
-                      left: enveloppe.icone != null ? 32 : 0),
+                  padding:
+                  EdgeInsets.only(left: enveloppe.icone != null ? 32 : 0),
+                  // Aligne avec le texte si icône
                   child: Text(
                     enveloppe.messageSous!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[400]),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: Colors.grey[400]),
                   ),
                 ),
               ],
               const SizedBox(height: 6),
               Padding(
-                padding: EdgeInsets.only(
-                    left: enveloppe.icone != null ? 32 : 0),
+                padding:
+                EdgeInsets.only(left: enveloppe.icone != null ? 32 : 0),
+                // Aligne avec le texte si icône
                 child: LinearProgressIndicator(
                   value: progression,
                   backgroundColor: couleurDeBaseEnveloppe.withOpacity(0.25),

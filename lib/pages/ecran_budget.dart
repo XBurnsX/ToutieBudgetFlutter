@@ -80,70 +80,8 @@ class _EcranBudgetState extends State<EcranBudget> {
     // Simuler des données
     _nombreTransactionsARevoir = 2; // Exemple
     _categoriesDuBudget = [
-      CategorieBudgetModel(
-        id: 'cat1',
-        nom: 'Alimentation',
-        couleur: Colors.orangeAccent,
-        alloueTotal: 500,
-        depenseTotal: 250,
-        disponibleTotal: 250,
-        info: 'Budget mensuel pour les courses',
-        enveloppes: [
-          EnveloppeModel(id: 'env1_1',
-              nom: 'Supermarché',
-              couleur: Colors.orange[700],
-              montantAlloue: 400,
-              depense: 200,
-              disponible: 200,
-              icone: Icons.shopping_cart),
-          EnveloppeModel(id: 'env1_2',
-              nom: 'Restaurants',
-              montantAlloue: 100,
-              depense: 50,
-              disponible: 50,
-              icone: Icons.restaurant),
-        ],
-      ),
-      CategorieBudgetModel(
-        id: 'cat2',
-        nom: 'Transport',
-        couleur: Colors.lightBlueAccent,
-        alloueTotal: 150,
-        depenseTotal: 70,
-        disponibleTotal: 80,
-        info: 'Carburant et entretien',
-        enveloppes: [
-          EnveloppeModel(id: 'env2_1',
-              nom: 'Essence',
-              montantAlloue: 100,
-              depense: 70,
-              disponible: 30,
-              icone: Icons.local_gas_station),
-          EnveloppeModel(id: 'env2_2',
-              nom: 'Maintenance',
-              couleur: Colors.blueGrey[300],
-              montantAlloue: 50,
-              depense: 0,
-              disponible: 50,
-              icone: Icons.build),
-        ],
-      ),
-      CategorieBudgetModel(
-          id: 'cat3',
-          nom: 'Loisirs',
-          couleur: Colors.greenAccent[400]!,
-          alloueTotal: 200,
-          depenseTotal: 210,
-          disponibleTotal: -10,
-          info: 'Activités et sorties',
-          enveloppes: [
-            EnveloppeModel(id: 'env3_1',
-                nom: 'Cinéma',
-                montantAlloue: 50,
-                depense: 60,
-                disponible: -10,
-                icone: Icons.theaters),
-          ]),
+
+
     ];
     // L'initialisation de _etatsDepliageCategories a été supprimée d'ici
 
