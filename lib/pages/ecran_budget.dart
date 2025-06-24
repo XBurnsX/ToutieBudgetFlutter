@@ -6,6 +6,7 @@ import 'package:toutie_budget/models/compte_model.dart';
 import 'package:toutie_budget/models/categorie_budget_model.dart';
 import 'package:toutie_budget/widgets/transactions_review_banner.dart';
 import 'package:toutie_budget/widgets/budget_categories_list.dart';
+import 'budget/ecran_virer_argent.dart';
 import 'gestion_categories_enveloppes_screen.dart'
     show Categorie, EnveloppeTestData, TypeObjectif, GestionCategoriesEnveloppesScreen; // Assurez-vous d'importer GestionCategoriesEnveloppesScreen
 
@@ -521,51 +522,48 @@ class _EcranBudgetState extends State<EcranBudget> {
   Widget _buildCustomAppBarTitle(ThemeData theme) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 0),
-      // Ajusté pour que Row prenne toute la largeur
+      // Le padding horizontal peut être ajusté pour contrôler l'espacement par rapport aux bords de l'AppBar
+      padding: const EdgeInsets.symmetric(horizontal: 30.0), // Ajusté de 0.0 à 8.0 ou 16.0
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start, // MODIFIÉ: pour aligner à gauche
         children: [
-          // Bouton Mois Précédent (optionnel, si vous voulez toujours les flèches en dehors du picker)
+          // Laisser les IconButton pour précédent/suivant ici si vous les voulez toujours visibles
           // IconButton(icon: Icon(Icons.chevron_left, color: Colors.white), onPressed: _currentUser != null ? _moisPrecedent : null),
-          Flexible(
-            child: GestureDetector(
-              onTap: _currentUser != null ? _handleDateTap : null,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    vertical: 8.0, horizontal: 12.0),
-                // Ajusté pour un meilleur look
-                decoration: BoxDecoration(
-                  color: Colors.transparent, // Toujours transparent
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  // Important pour centrer le texte et l'icône
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      DateFormat.yMMM('fr_FR').format(_moisAnneeCourant),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ) ?? const TextStyle(color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                    if (_currentUser != null) ...[
-                      const SizedBox(width: 8),
-                      const Icon(
-                          Icons.arrow_drop_down, color: Colors.white, size: 24),
-                    ]
-                  ],
-                ),
+
+          // Le GestureDetector prendra la place nécessaire
+          GestureDetector(
+            onTap: _currentUser != null ? _handleDateTap : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(8.0),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    DateFormat.yMMM('fr_FR').format(_moisAnneeCourant),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ) ??
+                        const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
+                    // textAlign: TextAlign.left, // Plus nécessaire avec MainAxisAlignment.start sur la Row parente
+                  ),
+                  if (_currentUser != null) ...[
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_drop_down, color: Colors.white, size: 24),
+                  ]
+                ],
               ),
             ),
           ),
-          // Bouton Mois Suivant (optionnel)
+          // Laisser les IconButton pour précédent/suivant ici si vous les voulez toujours visibles
           // IconButton(icon: Icon(Icons.chevron_right, color: Colors.white), onPressed: _currentUser != null ? _moisSuivant : null),
         ],
       ),
@@ -576,9 +574,25 @@ class _EcranBudgetState extends State<EcranBudget> {
     return [
       if (_currentUser != null)
         IconButton(
+          // NOUVEAU BOUTON
+          icon: const Icon(Icons.multiple_stop, color: Colors.white), // Ou Icons.swap_horiz, Icons.compare_arrows, Icons.currency_exchange
+          tooltip: 'Virer de l\'argent entre enveloppes',
+          onPressed: () {
+            if (!mounted) return;
+            // TODO: Implémenter la navigation vers EcranVirerArgent
+            Navigator.push(
+              context,
+              // Assurez-vous d'avoir importé EcranVirerArgent
+              MaterialPageRoute(builder: (context) => const EcranVirerArgent()),
+            );
+            print("Bouton Virer de l'argent cliqué");
+          },
+        ),
+      if (_currentUser != null)
+        IconButton(
           icon: const Icon(Icons.category_outlined, color: Colors.white),
           tooltip: 'Gérer les catégories et enveloppes',
-          onPressed: _naviguerVersGestionCategories, // onPressed ne vérifie plus _currentUser car le bouton n'est affiché que si connecté
+          onPressed: _naviguerVersGestionCategories,
         ),
       IconButton(
         icon: const Icon(Icons.menu, color: Colors.white),
@@ -589,7 +603,7 @@ class _EcranBudgetState extends State<EcranBudget> {
             scaffoldState!.openEndDrawer();
           } else {
             print("Pas d'endDrawer défini.");
-            // TODO: Logique alternative si pas de drawer (ex: dialogue de connexion si non connecté)
+            // TODO: Logique alternative si pas de drawer
           }
         },
       ),
