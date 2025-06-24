@@ -73,6 +73,7 @@ class EnveloppeTestData {
   // Méthode pour convertir un objet EnveloppeTestData en Map pour Firestore
   Map<String, dynamic> toMap() {
     return {
+      'id': id, // Assurez-vous que l'ID EST SAUVEGARDÉ DANS LA MAP
       'nom': nom,
       'iconeCodePoint': iconeCodePoint,
       'soldeActuel': soldeActuel,
@@ -86,24 +87,43 @@ class EnveloppeTestData {
     };
   }
 
-  // Méthode factory pour créer un objet EnveloppeTestData depuis un DocumentSnapshot de Firestore
-  factory EnveloppeTestData.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
+  // Votre fromFirestore existant
+  factory EnveloppeTestData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     Map<String, dynamic> data = doc.data()!;
     return EnveloppeTestData(
-      id: doc.id,
-      nom: data['nom'] ?? '',
+      id: doc.id, // ID vient du DocumentSnapshot
+      nom: data['nom'] as String? ?? '',
       iconeCodePoint: data['iconeCodePoint'] as int?,
-      soldeActuel: (data['soldeActuel'] ?? 0.0).toDouble(),
-      montantAlloue: (data['montantAlloue'] ?? 0.0).toDouble(),
+      soldeActuel: (data['soldeActuel'] as num?)?.toDouble() ?? 0.0,
+      montantAlloue: (data['montantAlloue'] as num?)?.toDouble() ?? 0.0,
       typeObjectif: stringToTypeObjectif(data['typeObjectif'] as String?),
       montantCible: (data['montantCible'] as num?)?.toDouble(),
       dateCible: (data['dateCible'] as Timestamp?)?.toDate(),
-      couleurThemeValue: data['couleurThemeValue'] as int? ??
-          _defaultCouleurThemeValue,
-      couleurSoldeCompteValue: data['couleurSoldeCompteValue'] as int? ??
-          _defaultCouleurSoldeCompteValue,
-      ordre: data['ordre'] ?? 0,
+      couleurThemeValue: data['couleurThemeValue'] as int? ?? _defaultCouleurThemeValue,
+      couleurSoldeCompteValue: data['couleurSoldeCompteValue'] as int? ?? _defaultCouleurSoldeCompteValue,
+      ordre: data['ordre'] as int? ?? 0,
+    );
+  }
+
+  // **** NOUVELLE MÉTHODE À AJOUTER ****
+  factory EnveloppeTestData.fromMap(Map<String, dynamic> map) {
+    return EnveloppeTestData(
+      // L'ID doit être dans la map elle-même, car nous n'avons pas de DocumentSnapshot ici
+      id: map['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(), // Fournir un fallback pour l'ID si manquant
+      nom: map['nom'] as String? ?? '',
+      iconeCodePoint: map['iconeCodePoint'] as int?,
+      soldeActuel: (map['soldeActuel'] as num?)?.toDouble() ?? 0.0,
+      montantAlloue: (map['montantAlloue'] as num?)?.toDouble() ?? 0.0,
+      typeObjectif: stringToTypeObjectif(map['typeObjectif'] as String?),
+      montantCible: (map['montantCible'] as num?)?.toDouble(),
+      // Adaptez la gestion de la date si vous stockez différemment dans la map imbriquée
+      // Si c'est un Timestamp dans la map imbriquée :
+      dateCible: (map['dateCible'] as Timestamp?)?.toDate(),
+      // Si c'est une String ISO dans la map imbriquée :
+      // dateCible: map['dateCible'] != null ? DateTime.parse(map['dateCible'] as String) : null,
+      couleurThemeValue: map['couleurThemeValue'] as int? ?? _defaultCouleurThemeValue,
+      couleurSoldeCompteValue: map['couleurSoldeCompteValue'] as int? ?? _defaultCouleurSoldeCompteValue,
+      ordre: map['ordre'] as int? ?? 0,
     );
   }
 }

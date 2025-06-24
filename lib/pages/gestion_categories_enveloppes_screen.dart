@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../widgets/EnveloppeCard.dart'; // ASSUREZ-VOUS QUE CE CHEMIN EST CORRECT ET CONTIENT EnveloppeTestData et TypeObjectif
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // NOUVEL IMPORT
 
-// import './reorder_screen.dart'; // Décommentez lorsque la page de réorganisation existera
+// ASSUREZ-VOUS QUE CE CHEMIN EST CORRECT ET QUE EnveloppeTestData a toMap et fromMap
+// import '../widgets/EnveloppeCard.dart'; // Ou là où EnveloppeTestData est définie
+// import '../models/enveloppe_test_data.dart'; // Si vous l'avez dans un dossier models
 
+// Enum TypeObjectif (si pas déjà importé avec EnveloppeTestData)
+enum TypeObjectif {
+  aucun,
+  mensuel,
+  dateFixe
+} // Assurez-vous que c'est le bon enum
+
+// --- Définition des classes Categorie et EnveloppeTestData ---
 class Categorie {
   String id;
   String nom;
@@ -14,7 +25,89 @@ class Categorie {
     required this.nom,
     List<EnveloppeTestData>? enveloppes,
   }) : enveloppes = enveloppes ?? [];
+
+  factory Categorie.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    if (data == null) {
+      throw StateError('Données manquantes pour la catégorie ID: ${doc.id}');
+    }
+    return Categorie(
+      id: doc.id,
+      nom: data['nom'] as String? ?? 'Nom non défini',
+      enveloppes: (data['enveloppes'] as List<dynamic>? ?? [])
+          .map((item) =>
+          EnveloppeTestData.fromMap(
+              item as Map<String, dynamic>)) // Utilise fromMap
+          .toList(),
+    );
+  }
 }
+
+class EnveloppeTestData {
+  String id;
+  String nom;
+  double soldeActuel;
+  double montantAlloue;
+  TypeObjectif typeObjectif;
+  double? montantCible;
+  int couleurThemeValue;
+  int couleurSoldeCompteValue;
+  DateTime? dateCible; // Exemple d'ajout, adaptez si nécessaire
+  int? iconeCodePoint; // Exemple d'ajout
+
+  EnveloppeTestData({
+    required this.id,
+    required this.nom,
+    this.soldeActuel = 0.0,
+    this.montantAlloue = 0.0,
+    this.typeObjectif = TypeObjectif.aucun,
+    this.montantCible,
+    required this.couleurThemeValue,
+    required this.couleurSoldeCompteValue,
+    this.dateCible,
+    this.iconeCodePoint,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      // IMPORTANT: l'ID doit être dans la map
+      'nom': nom,
+      'soldeActuel': soldeActuel,
+      'montantAlloue': montantAlloue,
+      'typeObjectif': typeObjectif.name,
+      // Utilise .name pour les enums (plus sûr)
+      'montantCible': montantCible,
+      'couleurThemeValue': couleurThemeValue,
+      'couleurSoldeCompteValue': couleurSoldeCompteValue,
+      'dateCible': dateCible != null ? Timestamp.fromDate(dateCible!) : null,
+      'iconeCodePoint': iconeCodePoint,
+    };
+  }
+
+  factory EnveloppeTestData.fromMap(Map<String, dynamic> map) {
+    return EnveloppeTestData(
+      id: map['id'] as String? ?? DateTime
+          .now()
+          .millisecondsSinceEpoch
+          .toString(),
+      nom: map['nom'] as String? ?? '',
+      soldeActuel: (map['soldeActuel'] as num?)?.toDouble() ?? 0.0,
+      montantAlloue: (map['montantAlloue'] as num?)?.toDouble() ?? 0.0,
+      typeObjectif: TypeObjectif.values.firstWhere(
+            (e) => e.name == map['typeObjectif'],
+        orElse: () => TypeObjectif.aucun,
+      ),
+      montantCible: (map['montantCible'] as num?)?.toDouble(),
+      couleurThemeValue: map['couleurThemeValue'] as int? ?? Colors.blue.value,
+      couleurSoldeCompteValue: map['couleurSoldeCompteValue'] as int? ??
+          Colors.grey.value,
+      dateCible: (map['dateCible'] as Timestamp?)?.toDate(),
+      iconeCodePoint: map['iconeCodePoint'] as int?,
+    );
+  }
+}
+// --- Fin des définitions de classes ---
 
 class GestionCategoriesEnveloppesScreen extends StatefulWidget {
   const GestionCategoriesEnveloppesScreen({Key? key}) : super(key: key);
@@ -26,25 +119,62 @@ class GestionCategoriesEnveloppesScreen extends StatefulWidget {
 
 class _GestionCategoriesEnveloppesScreenState
     extends State<GestionCategoriesEnveloppesScreen> {
-  // <--- DÉBUT DE LA CLASSE STATE
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  User? _currentUser;
 
-  final currencyFormatter =
-  NumberFormat.currency(locale: 'fr_CA', symbol: '\$');
-
-  final List<Categorie> _categories = [];
-
+  final currencyFormatter = NumberFormat.currency(
+      locale: 'fr_CA', symbol: '\$');
   final TextEditingController _nomCategorieController = TextEditingController();
   final TextEditingController _nomEnveloppeController = TextEditingController();
 
-  // Pas de méthode initState ou dispose nécessaire pour ces contrôleurs s'ils sont
-  // utilisés uniquement dans des dialogues qui gèrent leur propre cycle de vie.
-  // Cependant, si les contrôleurs étaient membres de la classe pour un TextField
-  // directement dans le widget build de cet écran, initState et dispose seraient nécessaires.
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = _auth.currentUser;
+    if (_currentUser == null) {
+      print("ERREUR: Utilisateur non connecté sur l'écran de gestion.");
+      // WidgetsBinding.instance.addPostFrameCallback((_) {
+      //   if (mounted) {
+      //     Navigator.of(context).pushReplacementNamed('/login');
+      //   }
+      // });
+    }
+  }
 
-  double _calculerTotalObjectifsMensuels() {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
+  @override
+  void dispose() {
+    _nomCategorieController.dispose();
+    _nomEnveloppeController.dispose();
+    super.dispose();
+  }
+
+  CollectionReference<Map<String, dynamic>>? _getUserCategoriesCollection() {
+    final uid = _currentUser?.uid;
+    if (uid != null) {
+      return _firestore.collection('users').doc(uid).collection('categories');
+    }
+    print("Tentative d'accès aux catégories sans UID utilisateur.");
+    return null;
+  }
+
+  DocumentReference<Map<String, dynamic>>? _getUserCategoryDoc(
+      String categoryId) {
+    final uid = _currentUser?.uid;
+    if (uid != null) {
+      return _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('categories')
+          .doc(categoryId);
+    }
+    print("Tentative d'accès au document catégorie sans UID utilisateur.");
+    return null;
+  }
+
+  double _calculerTotalObjectifsMensuels(List<Categorie> categories) {
     double total = 0.0;
-    for (var categorie in _categories) {
+    for (var categorie in categories) {
       for (var enveloppe in categorie.enveloppes) {
         if (enveloppe.typeObjectif == TypeObjectif.mensuel &&
             enveloppe.montantCible != null) {
@@ -56,39 +186,68 @@ class _GestionCategoriesEnveloppesScreenState
   }
 
   String _getNomMoisActuel() {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
     return DateFormat('MMMM', 'fr_FR').format(DateTime.now());
   }
 
-  void _ajouterCategorie() {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
-    if (_nomCategorieController.text
-        .trim()
-        .isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Le nom de la catégorie ne peut pas être vide.')),
+  Widget _buildTrailingWidgetForEnveloppe(EnveloppeTestData enveloppe,
+      ThemeData theme) {
+    bool aUnObjectifDefini = enveloppe.typeObjectif != TypeObjectif.aucun &&
+        enveloppe.montantCible != null &&
+        enveloppe.montantCible! > 0;
+
+    if (aUnObjectifDefini) {
+      String objectifStr = 'Obj: ${currencyFormatter.format(
+          enveloppe.montantCible)}';
+      if (enveloppe.typeObjectif == TypeObjectif.mensuel) {
+        objectifStr += '/mois';
+      }
+      return Text(
+        objectifStr,
+        style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
       );
-      return;
-    }
-    setState(() {
-      final nouvelleCategorie = Categorie(
-        id: DateTime
-            .now()
-            .millisecondsSinceEpoch
-            .toString(),
-        nom: _nomCategorieController.text.trim(),
+    } else {
+      return TextButton(
+        style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(50, 30),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            alignment: Alignment.centerRight),
+        onPressed: () {
+          print('Naviguer pour définir/modifier l\'objectif pour ${enveloppe
+              .nom}');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text('Définition d\'objectif pour ${enveloppe
+                      .nom} non implémentée.')),
+            );
+          }
+        },
+        child: Text('Ajouter objectif',
+            style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontSize: theme.textTheme.bodySmall?.fontSize)),
       );
-      _categories.add(nouvelleCategorie);
-      _nomCategorieController.clear();
-    });
-    if (Navigator.canPop(context)) {
-      Navigator.of(context).pop();
     }
   }
 
+  void _navigateToReorderScreen() {
+    print('Navigation vers la page de réorganisation demandée.');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Page de réorganisation non implémentée.')),
+      );
+    }
+  }
+  // --- Poursuite de _GestionCategoriesEnveloppesScreenState ---
+
+// --- Gestion des Catégories ---
   void _afficherDialogueAjoutCategorie() {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
+    if (_currentUser == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez vous connecter pour ajouter une catégorie.')));
+      return;
+    }
     _nomCategorieController.clear();
     showDialog(
       context: context,
@@ -108,8 +267,83 @@ class _GestionCategoriesEnveloppesScreenState
             ),
             TextButton(
               child: const Text('Ajouter'),
-              onPressed: () {
-                _ajouterCategorie();
+              onPressed: () => _ajouterCategorie(dialogContext),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _ajouterCategorie(BuildContext dialogContext) async {
+    final nomCategorie = _nomCategorieController.text.trim();
+    if (nomCategorie.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Le nom de la catégorie ne peut pas être vide.')));
+      return;
+    }
+
+    final userCategoriesCollection = _getUserCategoriesCollection();
+    if (userCategoriesCollection == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Utilisateur non authentifié. Impossible d\'ajouter.')));
+      Navigator.of(dialogContext).pop();
+      return;
+    }
+
+    try {
+      await userCategoriesCollection.add({
+        'nom': nomCategorie,
+        'enveloppes': [],
+      });
+      Navigator.of(dialogContext).pop();
+      _nomCategorieController.clear();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Catégorie "$nomCategorie" ajoutée.')));
+    } catch (e) {
+      print("Erreur ajout catégorie: $e");
+      if (mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('Erreur lors de l\'ajout: $e')));
+    }
+  }
+
+  void _afficherDialogueModificationCategorie(Categorie categorie) {
+    if (_currentUser == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez vous connecter pour modifier.')));
+      return;
+    }
+    _nomCategorieController.text = categorie.nom;
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text('Modifier le nom de "${categorie.nom}"'),
+          content: TextField(
+            controller: _nomCategorieController,
+            autofocus: true,
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annuler'),
+              onPressed: () { Navigator.of(dialogContext).pop(); _nomCategorieController.clear(); },
+            ),
+            TextButton(
+              child: const Text('Sauvegarder'),
+              onPressed: () async {
+                final nouveauNom = _nomCategorieController.text.trim();
+                if (nouveauNom.isEmpty) return;
+
+                final categoryDocRef = _getUserCategoryDoc(categorie.id);
+                if (categoryDocRef == null) {
+                  if (mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('Utilisateur non authentifié.')));
+                  Navigator.of(dialogContext).pop();
+                  return;
+                }
+                try {
+                  await categoryDocRef.update({'nom': nouveauNom});
+                  Navigator.of(dialogContext).pop();
+                  _nomCategorieController.clear();
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Catégorie renommée en "$nouveauNom".')));
+                } catch (e) {
+                  print("Erreur modification catégorie: $e");
+                  if (mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('Erreur de modification: $e')));
+                }
               },
             ),
           ],
@@ -118,47 +352,55 @@ class _GestionCategoriesEnveloppesScreenState
     );
   }
 
-  void _ajouterEnveloppe(Categorie categorie) {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
-    if (_nomEnveloppeController.text
-        .trim()
-        .isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("Le nom de l'enveloppe ne peut pas être vide.")),
-      );
+  void _confirmerSuppressionCategorie(Categorie categorie) {
+    if (_currentUser == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez vous connecter pour supprimer.')));
       return;
     }
-    setState(() {
-      int defaultColorValue = Colors.grey.value;
-      if (categorie.enveloppes.isNotEmpty) {
-        defaultColorValue = categorie.enveloppes.first.couleurThemeValue;
-      } else if (_categories.isNotEmpty &&
-          _categories.first.enveloppes.isNotEmpty) {
-        defaultColorValue =
-            _categories.first.enveloppes.first.couleurThemeValue;
-      }
-
-      final nouvelleEnveloppe = EnveloppeTestData(
-        id: DateTime
-            .now()
-            .millisecondsSinceEpoch
-            .toString(),
-        nom: _nomEnveloppeController.text.trim(),
-        soldeActuel: 0.0,
-        montantAlloue: 0.0,
-        typeObjectif: TypeObjectif.aucun,
-        couleurThemeValue: defaultColorValue,
-        couleurSoldeCompteValue: defaultColorValue,
-      );
-      categorie.enveloppes.add(nouvelleEnveloppe);
-      _nomEnveloppeController.clear();
-    });
-    Navigator.of(context).pop();
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirmer la suppression'),
+          content: Text('Supprimer la catégorie "${categorie.nom}" et toutes ses enveloppes ?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annuler'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Supprimer'),
+              onPressed: () async {
+                final categoryDocRef = _getUserCategoryDoc(categorie.id);
+                if (categoryDocRef == null) {
+                  if (mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('Utilisateur non authentifié.')));
+                  Navigator.of(dialogContext).pop();
+                  return;
+                }
+                try {
+                  await categoryDocRef.delete();
+                  Navigator.of(dialogContext).pop();
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Catégorie "${categorie.nom}" supprimée.')));
+                } catch (e) {
+                  print("Erreur suppression catégorie: $e");
+                  Navigator.of(dialogContext).pop();
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur de suppression: $e')));
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
+// --- Gestion des Enveloppes ---
   void _afficherDialogueAjoutEnveloppe(Categorie categorie) {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
+    if (_currentUser == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez vous connecter pour ajouter une enveloppe.')));
+      return;
+    }
     _nomEnveloppeController.clear();
     showDialog(
       context: context,
@@ -172,89 +414,80 @@ class _GestionCategoriesEnveloppesScreenState
             textCapitalization: TextCapitalization.sentences,
           ),
           actions: <Widget>[
-            TextButton(
-              child: const Text('Annuler'),
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-            TextButton(
-              child: const Text('Ajouter'),
-              onPressed: () => _ajouterEnveloppe(categorie),
-            ),
+            TextButton(child: const Text('Annuler'), onPressed: () => Navigator.of(dialogContext).pop()),
+            TextButton(child: const Text('Ajouter'), onPressed: () => _ajouterEnveloppe(categorie, dialogContext)),
           ],
         );
       },
     );
   }
 
-  void _navigateToReorderScreen() {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
-    print('Navigation vers la page de réorganisation demandée.');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Page de réorganisation non implémentée.')),
+  Future<void> _ajouterEnveloppe(Categorie categorie, BuildContext dialogContext) async {
+    final nomEnveloppe = _nomEnveloppeController.text.trim();
+    if (nomEnveloppe.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Le nom de l'enveloppe ne peut pas être vide.")));
+      return;
+    }
+
+    final categoryDocRef = _getUserCategoryDoc(categorie.id);
+    if (categoryDocRef == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Utilisateur non authentifié.')));
+      Navigator.of(dialogContext).pop();
+      return;
+    }
+
+    int defaultColorValue = Colors.blueGrey.value; // Une couleur par défaut plus neutre
+    // Vous pouvez ajouter une logique plus avancée pour choisir une couleur,
+    // par exemple, en fonction des enveloppes existantes ou un sélecteur de couleur.
+
+    final nouvelleEnveloppe = EnveloppeTestData(
+      id: DateTime.now().millisecondsSinceEpoch.toString() + nomEnveloppe.hashCode.toString(), // Un peu plus unique, mais UUID est mieux
+      nom: nomEnveloppe,
+      soldeActuel: 0.0,
+      montantAlloue: 0.0,
+      typeObjectif: TypeObjectif.aucun,
+      couleurThemeValue: defaultColorValue,
+      couleurSoldeCompteValue: defaultColorValue,
     );
-  }
 
-  @override
-  void dispose() {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
-    _nomCategorieController.dispose();
-    _nomEnveloppeController.dispose();
-    super.dispose();
-  }
-
-  Widget _buildTrailingWidgetForEnveloppe(EnveloppeTestData enveloppe,
-      ThemeData theme) {
-    // <--- CETTE MÉTHODE EST MAINTENANT DANS LA CLASSE
-    bool aUnObjectifDefini = enveloppe.typeObjectif != TypeObjectif.aucun &&
-        enveloppe.montantCible != null &&
-        enveloppe.montantCible! > 0;
-
-    if (aUnObjectifDefini) {
-      String objectifStr =
-          'Obj: ${currencyFormatter.format(enveloppe.montantCible)}';
-      if (enveloppe.typeObjectif == TypeObjectif.mensuel) {
-        objectifStr += '/mois';
-      }
-      return Text(
-        objectifStr,
-        style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
-      );
-    } else {
-      return TextButton(
-        style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: const Size(50, 30),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            alignment: Alignment.centerRight),
-        onPressed: () {
-          print(
-              'Naviguer pour définir/modifier l\'objectif pour ${enveloppe
-                  .nom}');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(
-                    'Définition d\'objectif pour ${enveloppe
-                        .nom} non implémentée.')),
-          );
-        },
-        child: Text('Ajouter objectif',
-            style: TextStyle(
-                color: theme.colorScheme.primary,
-                fontSize: theme.textTheme.bodySmall?.fontSize)),
-      );
+    try {
+      await categoryDocRef.update({
+        'enveloppes': FieldValue.arrayUnion([nouvelleEnveloppe.toMap()])
+      });
+      Navigator.of(dialogContext).pop();
+      _nomEnveloppeController.clear();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Enveloppe "$nomEnveloppe" ajoutée à "${categorie.nom}".')));
+    } catch (e) {
+      print("Erreur ajout enveloppe: $e");
+      if (mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('Erreur lors de l\'ajout de l\'enveloppe: $e')));
     }
   }
 
+// TODO: Implémenter _modifierEnveloppe et _supprimerEnveloppe
+
   @override
   Widget build(BuildContext context) {
-    // <--- LA MÉTHODE BUILD EST ICI, DANS LA CLASSE
     final theme = Theme.of(context);
-    final String nomMoisActuel = _getNomMoisActuel();
-    final double totalObjectifsMensuels = _calculerTotalObjectifsMensuels();
+
+    if (_currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Budget - Catégories')),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text("Vérification de l'authentification..."),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budget'),
+        title: const Text('Budget - Catégories'),
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
@@ -268,213 +501,177 @@ class _GestionCategoriesEnveloppesScreenState
           ),
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (totalObjectifsMensuels > 0 ||
-              _categories.any((cat) =>
-                  cat.enveloppes.any((env) =>
-                  env.typeObjectif == TypeObjectif.mensuel)))
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0),
-              child: Card(
-                elevation: 2.0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Total Objectifs de ${nomMoisActuel
-                            .substring(0, 1)
-                            .toUpperCase()}${nomMoisActuel.substring(1)}',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        currencyFormatter.format(totalObjectifsMensuels),
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          Expanded(
-            child: _categories.isEmpty
-                ? Center(
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _getUserCategoriesCollection()?.orderBy('nom').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData && !snapshot.hasError) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            print('Erreur Firestore Stream: ${snapshot.error}');
+            return Center(child: Text('Erreur: ${snapshot.error}. Vérifiez les logs.'));
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Aucune catégorie pour le moment.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 18),
-                    ),
+                    const Text('Aucune catégorie pour le moment.', style: TextStyle(fontSize: 18)),
                     const SizedBox(height: 20),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.add),
                       label: const Text('Créer une catégorie'),
                       onPressed: _afficherDialogueAjoutCategorie,
-                      style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 12),
-                          textStyle: const TextStyle(fontSize: 16)),
                     ),
                   ],
                 ),
               ),
-            )
-                : ListView.builder(
-              padding: EdgeInsets.all(8.0).copyWith(
-                  top: (totalObjectifsMensuels > 0 ||
-                      _categories.any((cat) =>
-                          cat.enveloppes
-                              .any((env) =>
-                          env.typeObjectif == TypeObjectif.mensuel)))
-                      ? 8.0
-                      : 12.0,
-                  bottom: 80.0),
-              itemCount: _categories.length,
-              itemBuilder: (context, index) {
-                final categorie = _categories[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8.0, vertical: 4.0),
-                        child: Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              categorie.nom,
-                              style:
-                              theme.textTheme.titleLarge?.copyWith(
+            );
+          }
+
+          final List<Categorie> categories = snapshot.data!.docs
+              .map((doc) => Categorie.fromFirestore(doc))
+              .toList();
+
+          final String nomMoisActuel = _getNomMoisActuel();
+          final double totalObjectifsMensuels = _calculerTotalObjectifsMensuels(categories);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (totalObjectifsMensuels > 0 || categories.any((cat) => cat.enveloppes.any((env) => env.typeObjectif == TypeObjectif.mensuel)))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0),
+                  child: Card(
+                    elevation: 2.0,
+                    color: theme.colorScheme.secondaryContainer.withOpacity(0.3),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Total Objectifs de ${nomMoisActuel.toUpperCase()}',
+                            style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Row(
+                                color: theme.colorScheme.onSecondaryContainer),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            currencyFormatter.format(totalObjectifsMensuels),
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: ListView.builder(
+                  padding: EdgeInsets.all(8.0).copyWith(
+                      top: (totalObjectifsMensuels > 0 || categories.any((cat) => cat.enveloppes.any((env) => env.typeObjectif == TypeObjectif.mensuel))) ? 8.0 : 12.0,
+                      bottom: 80.0), // Espace pour un éventuel FAB
+                  itemCount: categories.length,
+                  itemBuilder: (context, index) {
+                    final categorie = categories[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                IconButton(
-                                  icon: Icon(Icons.add_circle_outline,
-                                      color: theme.colorScheme.primary),
-                                  tooltip:
-                                  'Ajouter une enveloppe à ${categorie.nom}',
-                                  onPressed: () {
-                                    _afficherDialogueAjoutEnveloppe(
-                                        categorie);
-                                  },
+                                Expanded(
+                                  child: Text(
+                                    categorie.nom.toUpperCase(),
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.onSurfaceVariant),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.more_vert),
-                                  tooltip:
-                                  'Options pour ${categorie.nom}',
-                                  onPressed: () {
-                                    print(
-                                        'Options pour ${categorie.nom}');
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
-                                      SnackBar(
-                                          content: Text(
-                                              'Options pour ${categorie
-                                                  .nom} non implémentées.')),
-                                    );
-                                  },
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.add_circle_outline, color: theme.colorScheme.primary),
+                                      tooltip: 'Ajouter une enveloppe à ${categorie.nom}',
+                                      onPressed: () => _afficherDialogueAjoutEnveloppe(categorie),
+                                    ),
+                                    PopupMenuButton<String>(
+                                      icon: const Icon(Icons.more_vert),
+                                      onSelected: (String value) {
+                                        if (value == 'edit') _afficherDialogueModificationCategorie(categorie);
+                                        else if (value == 'delete') _confirmerSuppressionCategorie(categorie);
+                                      },
+                                      itemBuilder: (BuildContext context) => [
+                                        const PopupMenuItem<String>(value: 'edit', child: Text('Modifier nom')),
+                                        const PopupMenuItem<String>(value: 'delete', child: Text('Supprimer catégorie')),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+                          Card(
+                            elevation: 2.0,
+                            clipBehavior: Clip.antiAlias,
+                            child: Column(
+                              children: [
+                                if (categorie.enveloppes.isNotEmpty)
+                                  ...categorie.enveloppes.asMap().entries.map((entry) {
+                                    EnveloppeTestData enveloppe = entry.value;
+                                    return Column(
+                                      children: [
+
+
+                                        ListTile(
+                                          leading: enveloppe.iconeCodePoint != null
+                                              ? Icon(IconData(enveloppe.iconeCodePoint!, fontFamily: 'MaterialIcons'), color: Color(enveloppe.couleurThemeValue))
+                                              : null, // Ajoutez une icône si disponible
+                                          title: Text(enveloppe.nom),
+                                          // subtitle: Text('Solde: ${currencyFormatter.format(enveloppe.soldeActuel)}'), // LIGNE SUPPRIMÉE OU COMMENTÉE
+                                          trailing: _buildTrailingWidgetForEnveloppe(enveloppe, theme),
+                                          onTap: () {
+                                            print('Action pour enveloppe ${enveloppe.nom} (ID: ${enveloppe.id})');
+                                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gestion de l\'enveloppe ${enveloppe.nom} non implémentée.')));
+                                          },
+
+
+
+                                          // TODO: Ajouter onLongPress pour modifier/supprimer enveloppe ici
+                                        ),
+                                        if (entry.key < categorie.enveloppes.length - 1) const Divider(height: 1, indent: 16, endIndent: 16),
+                                      ],
+                                    );
+                                  }).toList()
+                                else
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                                    alignment: Alignment.center,
+                                    child: const Text('Aucune enveloppe. Cliquez sur + pour en ajouter.', style: TextStyle(fontStyle: FontStyle.italic)),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      Card(
-                        elevation: 2.0,
-                        clipBehavior: Clip.antiAlias,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                        ),
-                        margin:
-                        const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Column(
-                          children: [
-                            if (categorie.enveloppes.isNotEmpty)
-                              ...categorie.enveloppes
-                                  .asMap()
-                                  .entries
-                                  .map((entry) {
-                                int idx = entry.key;
-                                EnveloppeTestData enveloppe = entry.value;
-                                return Column(
-                                  children: [
-                                    ListTile(
-                                      title: Text(enveloppe.nom),
-                                      trailing:
-                                      _buildTrailingWidgetForEnveloppe(
-                                          enveloppe, theme),
-                                      onTap: () {
-                                        print(
-                                            'Voir/Modifier détails de ${enveloppe
-                                                .nom}');
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  'Détails de ${enveloppe
-                                                      .nom} non implémentés.')),
-                                        );
-                                      },
-                                    ),
-                                    if (idx <
-                                        categorie.enveloppes.length - 1)
-                                      const Divider(
-                                          height: 1,
-                                          indent: 16,
-                                          endIndent: 16),
-                                  ],
-                                );
-                              }).toList()
-                            else
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16.0, vertical: 24.0),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Aucune enveloppe dans cette catégorie.\nCliquez sur + pour en ajouter une.',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodySmall
-                                      ?.copyWith(
-                                      fontStyle: FontStyle.italic,
-                                      color: theme.hintColor),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
-} // <--- FIN DE LA CLASSE _GestionCategoriesEnveloppesScreenState. ASSUREZ-VOUS QUE C'EST LA TOUTE DERNIÈRE ACCOLADE DU FICHIER.
+} // Fin de la classe _GestionCategoriesEnveloppesScreenState
