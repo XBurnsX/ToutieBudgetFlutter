@@ -21,7 +21,7 @@ class _EcranCreationCompteState extends State<EcranCreationCompte> {
   double _soldeInitial = 0.0;
   TypeDeCompte _typeDeCompteSelectionne = TypeDeCompte
       .compteBancaire; // Valeur par défaut
-  Color _couleurCompteSelectionnee = Colors.green; // Couleur par défaut
+  Color _couleurCompteSelectionnee = Color(0xFF037703); // Couleur par défaut
   bool _isSaving = false;
 
   // Pas de dispose nécessaire pour les contrôleurs car ils ne sont pas utilisés directement
@@ -46,26 +46,25 @@ class _EcranCreationCompteState extends State<EcranCreationCompte> {
                     nouvelleCouleur; // Met à jour la couleur dans le scope du dialogue
               },
               availableColors: [
-                // Exemples de couleurs, vous pouvez personnaliser cette liste
-                Colors.red,
-                Colors.pink,
-                Colors.purple,
-                Colors.deepPurple,
-                Colors.indigo,
-                Colors.blue,
-                Colors.lightBlue,
-                Colors.cyan,
-                Colors.teal,
-                Colors.green,
-                Colors.lightGreen,
-                Colors.lime,
-                Colors.yellow,
-                Colors.amber,
-                Colors.orange,
-                Colors.deepOrange,
-                Colors.brown,
-                Colors.grey,
-                Colors.blueGrey,
+                Color(0xFF037703),// Exemples de couleurs, vous pouvez personnaliser cette liste
+                Color(0xFF0F3B01),
+                Color(0xFFBE6304),
+                Color(0xFF73400B),
+                Color(0xFFBEBE06),
+                Color(0xFF545408),
+                Color(0xFF0FC95A),
+                Color(0xFF0D5930),
+                Color(0xFF0FB0B0),
+                Color(0xFF0A5252),
+                Color(0xFF1165BD),
+                Color(0xFF0A4983),
+                Color(0xFF1212DA),
+                Color(0xFF4F1CA6),
+                Color(0xFF7D00FF),
+                Color(0xFFD046D0),
+                Color(0xFF6E1466),
+                Color(0xFFD02279),
+                Color(0xFF830746),
               ],
             ),
           ),

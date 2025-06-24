@@ -1,59 +1,11 @@
-//ecran_budget.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+//import 'package:toutie_budget/models/enveloppe_model.dart';
+import 'package:toutie_budget/models/compte_model.dart';
 
-// Mettez le chemin correct vers votre modèle de compte
-import 'package:toutie_budget/models/compte_model.dart'; // VÉRIFIEZ CE CHEMIN
-
-// --- Définitions des Modèles (si non importés d'ailleurs) ---
-// Si ces modèles sont dans d'autres fichiers, assurez-vous de les importer correctement.
-// Je les inclus ici pour que le code soit complet et compilable tel quel,
-// mais il est préférable de les avoir dans leurs propres fichiers.
-
-class EnveloppeModel {
-  String id;
-  String nom;
-  IconData? icone;
-  double montantBudgete;
-  double montantAlloue;
-  double depense;
-  double disponible;
-  String? messageSous;
-
-  EnveloppeModel({
-    required this.id,
-    required this.nom,
-    this.icone,
-    this.montantBudgete = 0.0,
-    this.montantAlloue = 0.0,
-    this.depense = 0.0,
-    this.disponible = 0.0,
-    this.messageSous,
-  });
-}
-
-class CategorieBudgetModel {
-  String id;
-  String nom;
-  double alloueTotal;
-  double depenseTotal;
-  double disponibleTotal;
-  String info;
-  List<EnveloppeModel> enveloppes;
-
-  CategorieBudgetModel({
-    required this.id,
-    required this.nom,
-    this.alloueTotal = 0.0,
-    this.depenseTotal = 0.0,
-    this.disponibleTotal = 0.0,
-    this.info = "",
-    List<EnveloppeModel>? enveloppes,
-  }) : enveloppes = enveloppes ?? [];
-}
-// --- Fin des définitions des Modèles ---
+import '../models/categorie_budget_model.dart'; // VÉRIFIEZ CE CHEMIN
 
 class EcranBudget extends StatefulWidget {
   const EcranBudget({super.key});
@@ -123,29 +75,33 @@ class _EcranBudgetState extends State<EcranBudget> {
       _isLoading = true;
     });
 
-    // SIMULATION: Remplacez par votre vraie logique de chargement pour catégories, etc.
-    // Cette logique pourrait dépendre de _moisAnneeCourant
-    await Future.delayed(
-        const Duration(milliseconds: 500)); // Simule un délai réseau
+    await Future.delayed(const Duration(milliseconds: 500));
 
-    _nombreTransactionsARevoir = 2; // Exemple
-    _categoriesDuBudget = [ // Exemples de données simulées
+    _nombreTransactionsARevoir = 2;
+    _categoriesDuBudget = [
       CategorieBudgetModel(
         id: 'cat1',
         nom: 'Alimentation',
+        couleur: Colors.orangeAccent,
+        // <--- VOICI LE CHANGEMENT
         alloueTotal: 500,
         depenseTotal: 250,
         disponibleTotal: 250,
         info: 'Budget mensuel pour les courses',
         enveloppes: [
-          EnveloppeModel(id: 'env1_1',
+          EnveloppeModel(
+              id: 'env1_1',
               nom: 'Supermarché',
+              couleur: Colors.orange[700],
+              // Optionnel pour l'enveloppe
               montantAlloue: 400,
               depense: 200,
               disponible: 200,
               icone: Icons.shopping_cart),
-          EnveloppeModel(id: 'env1_2',
+          EnveloppeModel(
+              id: 'env1_2',
               nom: 'Restaurants',
+              // couleur: Colors.orange[400], // Optionnel
               montantAlloue: 100,
               depense: 50,
               disponible: 50,
@@ -155,34 +111,57 @@ class _EcranBudgetState extends State<EcranBudget> {
       CategorieBudgetModel(
         id: 'cat2',
         nom: 'Transport',
+        couleur: Colors.lightBlueAccent,
+        // <--- VOICI LE CHANGEMENT
         alloueTotal: 150,
         depenseTotal: 70,
         disponibleTotal: 80,
         info: 'Carburant et entretien',
         enveloppes: [
-          EnveloppeModel(id: 'env2_1',
+          EnveloppeModel(
+              id: 'env2_1',
               nom: 'Essence',
               montantAlloue: 100,
               depense: 70,
               disponible: 30,
               icone: Icons.local_gas_station),
-          EnveloppeModel(id: 'env2_2',
+          EnveloppeModel(
+              id: 'env2_2',
               nom: 'Maintenance',
+              couleur: Colors.blueGrey[300],
+              // Optionnel
               montantAlloue: 50,
               depense: 0,
               disponible: 50,
               icone: Icons.build),
         ],
       ),
+      // Ajoutez d'autres catégories avec leurs couleurs
+      CategorieBudgetModel(
+          id: 'cat3',
+          nom: 'Loisirs',
+          couleur: Colors.greenAccent[400]!,
+          // <--- VOICI LE CHANGEMENT
+          alloueTotal: 200,
+          depenseTotal: 210,
+          // Dépassement
+          disponibleTotal: -10,
+          info: 'Activités et sorties',
+          enveloppes: [
+            EnveloppeModel(id: 'env3_1',
+                nom: 'Cinéma',
+                montantAlloue: 50,
+                depense: 60,
+                disponible: -10,
+                icone: Icons.theaters),
+          ]
+      ),
     ];
-    _etatsDepliageCategories =
-        Map.fromIterable( // Initialise les états de dépliage
-          _categoriesDuBudget,
-          key: (item) => (item as CategorieBudgetModel).id,
-          value: (
-              item) => false, // Toutes les catégories sont repliées par défaut
-        );
-    // FIN SIMULATION
+    _etatsDepliageCategories = Map.fromIterable(
+      _categoriesDuBudget,
+      key: (item) => (item as CategorieBudgetModel).id,
+      value: (item) => false,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -465,6 +444,7 @@ class _EcranBudgetState extends State<EcranBudget> {
     bool isOverAllocated = compte.soldeActuel < 0;
     double displayAmount = compte.soldeActuel.abs();
     String titleText = compte.nom.toUpperCase();
+    print("BANDEAU PRÊT À PLACER - Compte: ${compte.nom}, Couleur lue: ${compte.couleur}, Solde: ${compte.soldeActuel}");
     Color bannerColor = compte.couleur;
     String subtitleText = isOverAllocated ? 'SUR-UTILISÉ' : 'DISPONIBLE';
 
@@ -665,11 +645,30 @@ class _EcranBudgetState extends State<EcranBudget> {
       progression = categorie.depenseTotal / categorie.alloueTotal;
     }
     progression = progression.clamp(0.0, 1.0);
-    Color couleurProgression = Colors.green;
-    if (progression > 0.85) couleurProgression = Colors.orange;
-    if (progression >= 1.0 && categorie.depenseTotal > categorie.alloueTotal) {
-      couleurProgression = Colors.red;
+
+    Color couleurDeBase = categorie
+        .couleur; // Utilisation de la couleur du modèle
+    Color couleurBarreEtTexteDisponible = couleurDeBase; // Couleur par défaut pour la barre et le texte "disponible"
+
+    // Logique pour ajuster la couleur en fonction de l'état du budget
+    if (categorie.disponibleTotal < 0) { // Dépassement
+      couleurBarreEtTexteDisponible = Colors.red[400]!;
+    } else if (progression == 1.0) { // Atteint exactement (sans dépasser)
+      // Option : utiliser une nuance de la couleur de base ou une couleur spécifique
+      couleurBarreEtTexteDisponible =
+          HSLColor.fromColor(couleurDeBase).withSaturation(0.7).withLightness(
+              HSLColor
+                  .fromColor(couleurDeBase)
+                  .lightness * 0.9).toColor();
+    } else if (progression > 0.85) { // Proche de la limite
+      // Option : utiliser une nuance plus foncée/claire de la couleur de base ou une couleur d'avertissement dédiée
+      couleurBarreEtTexteDisponible =
+          HSLColor.fromColor(couleurDeBase).withLightness((HSLColor
+              .fromColor(couleurDeBase)
+              .lightness * 0.85).clamp(0.0, 1.0)).toColor();
+      // Ou une couleur fixe comme : Colors.orange[600]!;
     }
+    // Si la progression est faible/moyenne, couleurBarreEtTexteDisponible reste couleurDeBase
 
     return Column(
       children: [
@@ -682,7 +681,9 @@ class _EcranBudgetState extends State<EcranBudget> {
           child: Container(
             padding: const EdgeInsets.symmetric(
                 horizontal: 16.0, vertical: 12.0),
-            color: Colors.grey[850],
+            // Optionnel: fond légèrement teinté avec la couleur de base
+            // color: couleurDeBase.withOpacity(0.08),
+            color: Colors.grey[850], // Ou gardez le fond actuel
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -693,6 +694,8 @@ class _EcranBudgetState extends State<EcranBudget> {
                       child: Text(
                         categorie.nom.toUpperCase(),
                         style: theme.textTheme.titleMedium?.copyWith(
+                          // Option: utiliser la couleur de base pour le nom si le contraste est bon
+                          // color: HSLColor.fromColor(couleurDeBase).withLightness(0.8).toColor(),
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5),
@@ -702,7 +705,8 @@ class _EcranBudgetState extends State<EcranBudget> {
                     Text(
                       '${categorie.disponibleTotal.toStringAsFixed(2)} \$',
                       style: theme.textTheme.titleMedium?.copyWith(
-                          color: couleurProgression,
+                          color: couleurBarreEtTexteDisponible,
+                          // Couleur dynamique ici
                           fontWeight: FontWeight.bold),
                     ),
                     Icon(
@@ -723,9 +727,14 @@ class _EcranBudgetState extends State<EcranBudget> {
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
                   value: progression,
-                  backgroundColor: Colors.grey[700],
-                  valueColor: AlwaysStoppedAnimation<Color>(couleurProgression),
+                  backgroundColor: couleurDeBase.withOpacity(0.25),
+                  // Fond de la barre avec la couleur de base
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      couleurBarreEtTexteDisponible),
+                  // Couleur de progression dynamique
                   minHeight: 6,
+                  borderRadius: BorderRadius.circular(
+                      3), // Optionnel: arrondir les bords
                 ),
               ],
             ),
@@ -734,9 +743,14 @@ class _EcranBudgetState extends State<EcranBudget> {
         if (estDeplie)
           Container(
             color: Colors.grey[900],
+            // Fond pour la section des enveloppes
+            // Optionnel : un fond légèrement différent pour les enveloppes
+            // color: HSLColor.fromColor(couleurDeBase).withLightness(0.15).toColor(),
             child: Column(
-              children: categorie.enveloppes.map((enveloppe) =>
-                  _buildEnveloppeItem(theme, enveloppe)).toList(),
+              children: categorie.enveloppes.map((enveloppe) {
+                // Passer la couleur de base de la catégorie à l'enveloppe
+                return _buildEnveloppeItem(theme, enveloppe, couleurDeBase);
+              }).toList(),
             ),
           ),
         Divider(height: 1, color: Colors.grey[700]),
@@ -744,25 +758,51 @@ class _EcranBudgetState extends State<EcranBudget> {
     );
   }
 
-  Widget _buildEnveloppeItem(ThemeData theme, EnveloppeModel enveloppe) {
+  Widget _buildEnveloppeItem(ThemeData theme, EnveloppeModel enveloppe,
+      Color couleurCategorieParente) {
     double progression = 0;
     if (enveloppe.montantAlloue > 0) {
-      progression = enveloppe.depense / enveloppe.montantAlloue;
+      progression = (enveloppe.depense / enveloppe.montantAlloue);
     }
     progression = progression.clamp(0.0, 1.0);
-    Color couleurProgression = Colors.blueAccent;
-    if (enveloppe.disponible < 0) {
-      couleurProgression = Colors.redAccent;
-    } else if (progression > 0.85) {
-      couleurProgression = Colors.orangeAccent;
-    }
 
+    // Déterminer la couleur de base pour l'enveloppe
+    // Priorité à la couleur de l'enveloppe elle-même, sinon dériver de la catégorie parente
+    Color couleurDeBaseEnveloppe = enveloppe.couleur ??
+        HSLColor.fromColor(couleurCategorieParente).withLightness(
+            (HSLColor
+                .fromColor(couleurCategorieParente)
+                .lightness * 0.8).clamp(0.0, 1.0)
+        ).toColor(); // Nuance de la couleur parente
+
+    Color couleurBarreEtTexteDisponibleEnveloppe = couleurDeBaseEnveloppe;
+
+    // Logique pour ajuster la couleur en fonction de l'état de l'enveloppe
+    if (enveloppe.disponible < 0) { // Dépassement
+      couleurBarreEtTexteDisponibleEnveloppe = Colors.redAccent[200]!;
+    } else if (progression == 1.0) { // Atteint exactement
+      couleurBarreEtTexteDisponibleEnveloppe =
+          HSLColor
+              .fromColor(couleurDeBaseEnveloppe)
+              .withSaturation(0.6)
+              .toColor();
+    } else if (progression > 0.85) { // Proche de la limite
+      couleurBarreEtTexteDisponibleEnveloppe =
+          HSLColor.fromColor(couleurDeBaseEnveloppe).withLightness(
+              (HSLColor
+                  .fromColor(couleurDeBaseEnveloppe)
+                  .lightness * 0.9).clamp(0.0, 1.0)
+          ).toColor();
+      // Ou une couleur fixe comme : Colors.orangeAccent[200]!;
+    }
 
     return Material(
       color: Colors.transparent,
+      // Le fond est géré par le conteneur parent dans _buildCategorieItem
       child: InkWell(
         onTap: () {
           print('Enveloppe ${enveloppe.nom} cliquée');
+          // TODO: Naviguer vers les détails/transactions de l'enveloppe
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
@@ -772,7 +812,11 @@ class _EcranBudgetState extends State<EcranBudget> {
               Row(
                 children: <Widget>[
                   if (enveloppe.icone != null) ...[
-                    Icon(enveloppe.icone, color: Colors.white70, size: 20),
+                    // Utiliser une nuance de la couleur de base pour l'icône
+                    Icon(enveloppe.icone,
+                        color: HSLColor.fromColor(couleurDeBaseEnveloppe)
+                            .withAlpha(200)
+                            .toColor(), size: 20),
                     const SizedBox(width: 12),
                   ],
                   Expanded(
@@ -786,7 +830,9 @@ class _EcranBudgetState extends State<EcranBudget> {
                   Text(
                     '${enveloppe.disponible.toStringAsFixed(2)} \$',
                     style: theme.textTheme.titleSmall?.copyWith(
-                        color: couleurProgression, fontWeight: FontWeight.w500),
+                        color: couleurBarreEtTexteDisponibleEnveloppe,
+                        // Couleur dynamique
+                        fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
@@ -809,9 +855,11 @@ class _EcranBudgetState extends State<EcranBudget> {
                     left: enveloppe.icone != null ? 32 : 0),
                 child: LinearProgressIndicator(
                   value: progression,
-                  backgroundColor: Colors.grey[700]?.withOpacity(0.5),
-                  valueColor: AlwaysStoppedAnimation<Color>(couleurProgression),
+                  backgroundColor: couleurDeBaseEnveloppe.withOpacity(0.25),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      couleurBarreEtTexteDisponibleEnveloppe),
                   minHeight: 4,
+                  borderRadius: BorderRadius.circular(2), // Optionnel
                 ),
               ),
             ],
