@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-//import 'package:toutie_budget/models/enveloppe_model.dart';
 import 'package:toutie_budget/models/compte_model.dart';
-
-import '../models/categorie_budget_model.dart'; // VÉRIFIEZ CE CHEMIN
+import 'package:toutie_budget/models/categorie_budget_model.dart'; // VÉRIFIEZ CE CHEMIN
+import 'package:toutie_budget/widgets/transactions_review_banner.dart';
+import 'package:toutie_budget/widgets/budget_categories_list.dart';
 
 class EcranBudget extends StatefulWidget {
   const EcranBudget({super.key});
@@ -21,15 +21,14 @@ class _EcranBudgetState extends State<EcranBudget> {
       .now()
       .month, 1);
   User? _currentUser;
-  bool _isLoading = true; // Pour les données non-streamées (catégories, etc.)
+  bool _isLoading = true; // Pour les données non-streamées (catégories, nombre à revoir)
 
-  // List<Compte> _comptesPourBandeaux = []; // Peut être enlevé si on utilise directement snapshot.data
   Stream<List<Compte>>? _comptesStream;
 
-  int _nombreTransactionsARevoir = 0; // Donnée simulée
-  List<CategorieBudgetModel> _categoriesDuBudget = []; // Donnée simulée
-  Map<String, bool> _etatsDepliageCategories = {
-  }; // Donnée simulée pour le dépliage
+  int _nombreTransactionsARevoir = 0;
+  List<CategorieBudgetModel> _categoriesDuBudget = [];
+
+  // _etatsDepliageCategories a été supprimé d'ici
 
   @override
   void initState() {
@@ -38,12 +37,12 @@ class _EcranBudgetState extends State<EcranBudget> {
     if (_currentUser != null) {
       _comptesStream = _getComptesStream();
     }
-    _chargerDonneesBudgetNonStream(); // Charger les données simulées/non-streamées
+    _chargerDonneesBudgetNonStream();
   }
 
   Stream<List<Compte>>? _getComptesStream() {
     if (_currentUser == null) {
-      return Stream.value([]); // Stream vide si pas d'utilisateur
+      return Stream.value([]);
     }
     return FirebaseFirestore.instance
         .collection('users')
@@ -75,33 +74,30 @@ class _EcranBudgetState extends State<EcranBudget> {
       _isLoading = true;
     });
 
+    // Simuler un délai de chargement
     await Future.delayed(const Duration(milliseconds: 500));
 
-    _nombreTransactionsARevoir = 2;
+    // Simuler des données
+    _nombreTransactionsARevoir = 2; // Exemple
     _categoriesDuBudget = [
       CategorieBudgetModel(
         id: 'cat1',
         nom: 'Alimentation',
         couleur: Colors.orangeAccent,
-        // <--- VOICI LE CHANGEMENT
         alloueTotal: 500,
         depenseTotal: 250,
         disponibleTotal: 250,
         info: 'Budget mensuel pour les courses',
         enveloppes: [
-          EnveloppeModel(
-              id: 'env1_1',
+          EnveloppeModel(id: 'env1_1',
               nom: 'Supermarché',
               couleur: Colors.orange[700],
-              // Optionnel pour l'enveloppe
               montantAlloue: 400,
               depense: 200,
               disponible: 200,
               icone: Icons.shopping_cart),
-          EnveloppeModel(
-              id: 'env1_2',
+          EnveloppeModel(id: 'env1_2',
               nom: 'Restaurants',
-              // couleur: Colors.orange[400], // Optionnel
               montantAlloue: 100,
               depense: 50,
               disponible: 50,
@@ -112,39 +108,32 @@ class _EcranBudgetState extends State<EcranBudget> {
         id: 'cat2',
         nom: 'Transport',
         couleur: Colors.lightBlueAccent,
-        // <--- VOICI LE CHANGEMENT
         alloueTotal: 150,
         depenseTotal: 70,
         disponibleTotal: 80,
         info: 'Carburant et entretien',
         enveloppes: [
-          EnveloppeModel(
-              id: 'env2_1',
+          EnveloppeModel(id: 'env2_1',
               nom: 'Essence',
               montantAlloue: 100,
               depense: 70,
               disponible: 30,
               icone: Icons.local_gas_station),
-          EnveloppeModel(
-              id: 'env2_2',
+          EnveloppeModel(id: 'env2_2',
               nom: 'Maintenance',
               couleur: Colors.blueGrey[300],
-              // Optionnel
               montantAlloue: 50,
               depense: 0,
               disponible: 50,
               icone: Icons.build),
         ],
       ),
-      // Ajoutez d'autres catégories avec leurs couleurs
       CategorieBudgetModel(
           id: 'cat3',
           nom: 'Loisirs',
           couleur: Colors.greenAccent[400]!,
-          // <--- VOICI LE CHANGEMENT
           alloueTotal: 200,
           depenseTotal: 210,
-          // Dépassement
           disponibleTotal: -10,
           info: 'Activités et sorties',
           enveloppes: [
@@ -154,14 +143,9 @@ class _EcranBudgetState extends State<EcranBudget> {
                 depense: 60,
                 disponible: -10,
                 icone: Icons.theaters),
-          ]
-      ),
+          ]),
     ];
-    _etatsDepliageCategories = Map.fromIterable(
-      _categoriesDuBudget,
-      key: (item) => (item as CategorieBudgetModel).id,
-      value: (item) => false,
-    );
+    // L'initialisation de _etatsDepliageCategories a été supprimée d'ici
 
     if (!mounted) return;
     setState(() {
@@ -174,7 +158,7 @@ class _EcranBudgetState extends State<EcranBudget> {
       _moisAnneeCourant =
           DateTime(_moisAnneeCourant.year, _moisAnneeCourant.month - 1, 1);
     });
-    _chargerDonneesBudgetNonStream(); // Recharge les données non-stream pour le nouveau mois
+    _chargerDonneesBudgetNonStream();
   }
 
   void _moisSuivant() {
@@ -234,7 +218,6 @@ class _EcranBudgetState extends State<EcranBudget> {
       ),
       body: RefreshIndicator(
         onRefresh: _chargerDonneesBudgetNonStream,
-        // Recharge les données non-stream
         backgroundColor: const Color(0xFF1E1E1E),
         color: Colors.white,
         child: StreamBuilder<List<Compte>>(
@@ -243,7 +226,6 @@ class _EcranBudgetState extends State<EcranBudget> {
             bool streamComptesEnChargement = snapshotComptes.connectionState ==
                 ConnectionState.waiting;
 
-            // Afficher un loader si les données non-streamées chargent OU si le stream charge et n'a pas encore de données
             if (_isLoading ||
                 (streamComptesEnChargement && !snapshotComptes.hasData)) {
               return const Center(
@@ -259,24 +241,33 @@ class _EcranBudgetState extends State<EcranBudget> {
 
             List<Compte> comptesPourBandeaux = snapshotComptes.data ?? [];
 
-            // Si _isLoading est false (données non-streamées prêtes)
-            // et que le stream des comptes est vide (après chargement)
-            // et qu'il n'y a pas de catégories, on pourrait afficher un message global "Commencez..."
-            // Cependant, _buildCategoriesSection gère déjà un cas similaire.
-            // On peut laisser _buildCategoriesSection afficher son message si nécessaire.
-
             return ListView(
               padding: EdgeInsets.zero,
               children: <Widget>[
+                // Section 1: Bandeaux "Prêt à placer"
                 ...comptesPourBandeaux
                     .where((compte) => compte.soldeActuel != 0)
                     .map((compte) {
                   return _buildReadyToAssignBanner(theme, compte);
                 }).toList(),
-                _buildReviewTransactionsBanner(theme),
-                _buildCategoriesSection(theme, comptesPourBandeaux),
-                // Passe les comptes du stream
-                const SizedBox(height: 80),
+
+                // Section 2: Bandeau "Transactions à revoir" (Widget externe)
+                TransactionsReviewBanner(
+                  count: _nombreTransactionsARevoir,
+                  onTap: () {
+                    print('Bannière "Transactions à revoir" cliquée');
+                    // TODO: Implémentez la navigation ou l'action désirée
+                  },
+                ),
+
+                // Section 3: Section des catégories (Widget externe)
+                BudgetCategoriesList(
+                  categories: _categoriesDuBudget,
+                  comptesActuels: comptesPourBandeaux,
+                  isLoading: _isLoading,
+                ),
+
+                const SizedBox(height: 80), // Espace en bas
               ],
             );
           },
@@ -284,7 +275,6 @@ class _EcranBudgetState extends State<EcranBudget> {
       ),
     );
   }
-
 
   Future<DateTime?> _showCustomMonthYearPicker(BuildContext context) async {
     DateTime tempPickedDate = _moisAnneeCourant;
@@ -350,11 +340,9 @@ class _EcranBudgetState extends State<EcranBudget> {
 
                     return ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isCurrentlySelectedOnScreen
-                            ? Theme
+                        backgroundColor: isCurrentlySelectedOnScreen ? Theme
                             .of(context)
-                            .primaryColor
-                            : const Color(0xFF333333),
+                            .primaryColor : const Color(0xFF333333),
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.zero,
                         shape: RoundedRectangleBorder(
@@ -367,8 +355,7 @@ class _EcranBudgetState extends State<EcranBudget> {
                           style: TextStyle(
                             fontWeight: isCurrentlySelectedOnScreen ? FontWeight
                                 .bold : FontWeight.normal,
-                          )
-                      ),
+                          )),
                       onPressed: () {
                         Navigator.pop(dialogContext,
                             DateTime(tempPickedDate.year, index + 1, 1));
@@ -395,20 +382,23 @@ class _EcranBudgetState extends State<EcranBudget> {
             child: GestureDetector(
               onTap: _handleDateTap,
               child: Container(
-                color: Colors.transparent,
-                padding: EdgeInsets.zero,
+                color: Colors.transparent, // Pour une meilleure zone de clic
+                padding: EdgeInsets.zero, // Ajustez si nécessaire
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  // Pour que la Row ne prenne que la place nécessaire
                   children: [
                     Text(
                       DateFormat.yMMM('fr_FR').format(_moisAnneeCourant),
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: Colors.white,
                         fontSize: 18,
+                        // Taille de police légèrement réduite pour la propreté
                         fontWeight: FontWeight.bold,
-                      ) ?? const TextStyle(color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold),
+                      ) ??
+                          const TextStyle(color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(width: 8),
                     const Icon(
@@ -427,15 +417,15 @@ class _EcranBudgetState extends State<EcranBudget> {
     return [
       IconButton(icon: const Icon(Icons.category_outlined, color: Colors.white),
           onPressed: () {
-            /* TODO */
+            /* TODO: Naviguer vers la gestion des catégories/modèles */
           }),
       IconButton(
           icon: const Icon(Icons.menu, color: Colors.white), onPressed: () {
-        /* TODO */
+        /* TODO: Ouvrir un drawer ou menu principal */
       }),
       IconButton(icon: const Icon(Icons.more_vert, color: Colors.white),
           onPressed: () {
-            /* TODO */
+            /* TODO: Options supplémentaires */
           }),
     ];
   }
@@ -444,15 +434,14 @@ class _EcranBudgetState extends State<EcranBudget> {
     bool isOverAllocated = compte.soldeActuel < 0;
     double displayAmount = compte.soldeActuel.abs();
     String titleText = compte.nom.toUpperCase();
-    print("BANDEAU PRÊT À PLACER - Compte: ${compte.nom}, Couleur lue: ${compte.couleur}, Solde: ${compte.soldeActuel}");
-    Color bannerColor = compte.couleur;
+    Color bannerColor = compte.couleur; // Utilisation de la couleur du compte
     String subtitleText = isOverAllocated ? 'SUR-UTILISÉ' : 'DISPONIBLE';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: bannerColor,
+        color: bannerColor, // Appliquer la couleur du compte
         borderRadius: BorderRadius.circular(8.0),
         boxShadow: [
           BoxShadow(
@@ -466,7 +455,7 @@ class _EcranBudgetState extends State<EcranBudget> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          Expanded(
+          Expanded( // Pour s'assurer que le texte ne déborde pas si le nom du compte est long
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -477,7 +466,8 @@ class _EcranBudgetState extends State<EcranBudget> {
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  overflow: TextOverflow
+                      .ellipsis, // Gérer les textes trop longs
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -489,7 +479,7 @@ class _EcranBudgetState extends State<EcranBudget> {
               ],
             ),
           ),
-          Row(
+          Row( // Pour garder l'icône et le montant ensemble
             children: [
               if (isOverAllocated)
                 Padding(
@@ -497,6 +487,7 @@ class _EcranBudgetState extends State<EcranBudget> {
                   child: Icon(
                     Icons.warning_amber_rounded,
                     color: Colors.white.withOpacity(0.9),
+                    // Couleur de l'icône d'avertissement
                     size: 20,
                   ),
                 ),
@@ -513,359 +504,6 @@ class _EcranBudgetState extends State<EcranBudget> {
       ),
     );
   }
-
-  Widget _buildReviewTransactionsBanner(ThemeData theme) {
-    if (_nombreTransactionsARevoir == 0) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF004D40), // Vert foncé
-        borderRadius: BorderRadius.circular(8.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: () {
-          print('Bannière "Transactions à revoir" cliquée');
-        },
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            Row(
-              children: [
-                const Icon(Icons.playlist_add_check_circle_outlined,
-                    color: Colors.white, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  '$_nombreTransactionsARevoir transactions à revoir',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white, fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-            const Icon(
-                Icons.arrow_forward_ios, color: Colors.white70, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoriesSection(ThemeData theme, List<Compte> comptesActuels) {
-    bool aucunCompteAvecSolde = comptesActuels
-        .where((c) => c.soldeActuel != 0)
-        .isEmpty;
-
-    // _isLoading ici se réfère au chargement des données non-stream (catégories)
-    if (_categoriesDuBudget.isEmpty && aucunCompteAvecSolde && !_isLoading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.category_outlined, size: 60, color: Colors.grey[600]),
-              const SizedBox(height: 16),
-              Text(
-                'Commencez par créer des catégories',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                    color: Colors.grey[700]),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Organisez votre budget en allouant des fonds à différentes catégories et enveloppes.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text('Créer une catégorie'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 12),
-                ),
-                onPressed: () {
-                  print('Naviguer vers la création de catégorie');
-                },
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_categoriesDuBudget.isEmpty && !aucunCompteAvecSolde && !_isLoading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
-        child: Center(
-          child: Text(
-            'Aucune catégorie budgétaire pour ce mois.\nCommencez par en ajouter une !',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.grey[600]),
-          ),
-        ),
-      );
-    }
-
-    // Si _isLoading est vrai pour les catégories, on pourrait afficher un loader spécifique ici,
-    // mais le loader global dans build() devrait déjà le couvrir.
-    if (_isLoading) {
-      return Padding( // Ou un simple SizedBox.shrink() si le loader global suffit
-        padding: const EdgeInsets.symmetric(vertical: 40.0),
-        child: const Center(
-            child: CircularProgressIndicator(color: Colors.white54)),
-      );
-    }
-
-
-    return Column(
-      children: _categoriesDuBudget.map((categorie) =>
-          _buildCategorieItem(theme, categorie)).toList(),
-    );
-  }
-
-  Widget _buildCategorieItem(ThemeData theme, CategorieBudgetModel categorie) {
-    bool estDeplie = _etatsDepliageCategories[categorie.id] ?? false;
-    double progression = 0;
-    if (categorie.alloueTotal > 0) {
-      progression = categorie.depenseTotal / categorie.alloueTotal;
-    }
-    progression = progression.clamp(0.0, 1.0);
-
-    Color couleurDeBase = categorie
-        .couleur; // Utilisation de la couleur du modèle
-    Color couleurBarreEtTexteDisponible = couleurDeBase; // Couleur par défaut pour la barre et le texte "disponible"
-
-    // Logique pour ajuster la couleur en fonction de l'état du budget
-    if (categorie.disponibleTotal < 0) { // Dépassement
-      couleurBarreEtTexteDisponible = Colors.red[400]!;
-    } else if (progression == 1.0) { // Atteint exactement (sans dépasser)
-      // Option : utiliser une nuance de la couleur de base ou une couleur spécifique
-      couleurBarreEtTexteDisponible =
-          HSLColor.fromColor(couleurDeBase).withSaturation(0.7).withLightness(
-              HSLColor
-                  .fromColor(couleurDeBase)
-                  .lightness * 0.9).toColor();
-    } else if (progression > 0.85) { // Proche de la limite
-      // Option : utiliser une nuance plus foncée/claire de la couleur de base ou une couleur d'avertissement dédiée
-      couleurBarreEtTexteDisponible =
-          HSLColor.fromColor(couleurDeBase).withLightness((HSLColor
-              .fromColor(couleurDeBase)
-              .lightness * 0.85).clamp(0.0, 1.0)).toColor();
-      // Ou une couleur fixe comme : Colors.orange[600]!;
-    }
-    // Si la progression est faible/moyenne, couleurBarreEtTexteDisponible reste couleurDeBase
-
-    return Column(
-      children: [
-        InkWell(
-          onTap: () {
-            setState(() {
-              _etatsDepliageCategories[categorie.id] = !estDeplie;
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16.0, vertical: 12.0),
-            // Optionnel: fond légèrement teinté avec la couleur de base
-            // color: couleurDeBase.withOpacity(0.08),
-            color: Colors.grey[850], // Ou gardez le fond actuel
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        categorie.nom.toUpperCase(),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          // Option: utiliser la couleur de base pour le nom si le contraste est bon
-                          // color: HSLColor.fromColor(couleurDeBase).withLightness(0.8).toColor(),
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      '${categorie.disponibleTotal.toStringAsFixed(2)} \$',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                          color: couleurBarreEtTexteDisponible,
-                          // Couleur dynamique ici
-                          fontWeight: FontWeight.bold),
-                    ),
-                    Icon(
-                      estDeplie ? Icons.keyboard_arrow_down : Icons
-                          .keyboard_arrow_right,
-                      color: Colors.white70,
-                    ),
-                  ],
-                ),
-                if (categorie.info.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    categorie.info,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white70),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: progression,
-                  backgroundColor: couleurDeBase.withOpacity(0.25),
-                  // Fond de la barre avec la couleur de base
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      couleurBarreEtTexteDisponible),
-                  // Couleur de progression dynamique
-                  minHeight: 6,
-                  borderRadius: BorderRadius.circular(
-                      3), // Optionnel: arrondir les bords
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (estDeplie)
-          Container(
-            color: Colors.grey[900],
-            // Fond pour la section des enveloppes
-            // Optionnel : un fond légèrement différent pour les enveloppes
-            // color: HSLColor.fromColor(couleurDeBase).withLightness(0.15).toColor(),
-            child: Column(
-              children: categorie.enveloppes.map((enveloppe) {
-                // Passer la couleur de base de la catégorie à l'enveloppe
-                return _buildEnveloppeItem(theme, enveloppe, couleurDeBase);
-              }).toList(),
-            ),
-          ),
-        Divider(height: 1, color: Colors.grey[700]),
-      ],
-    );
-  }
-
-  Widget _buildEnveloppeItem(ThemeData theme, EnveloppeModel enveloppe,
-      Color couleurCategorieParente) {
-    double progression = 0;
-    if (enveloppe.montantAlloue > 0) {
-      progression = (enveloppe.depense / enveloppe.montantAlloue);
-    }
-    progression = progression.clamp(0.0, 1.0);
-
-    // Déterminer la couleur de base pour l'enveloppe
-    // Priorité à la couleur de l'enveloppe elle-même, sinon dériver de la catégorie parente
-    Color couleurDeBaseEnveloppe = enveloppe.couleur ??
-        HSLColor.fromColor(couleurCategorieParente).withLightness(
-            (HSLColor
-                .fromColor(couleurCategorieParente)
-                .lightness * 0.8).clamp(0.0, 1.0)
-        ).toColor(); // Nuance de la couleur parente
-
-    Color couleurBarreEtTexteDisponibleEnveloppe = couleurDeBaseEnveloppe;
-
-    // Logique pour ajuster la couleur en fonction de l'état de l'enveloppe
-    if (enveloppe.disponible < 0) { // Dépassement
-      couleurBarreEtTexteDisponibleEnveloppe = Colors.redAccent[200]!;
-    } else if (progression == 1.0) { // Atteint exactement
-      couleurBarreEtTexteDisponibleEnveloppe =
-          HSLColor
-              .fromColor(couleurDeBaseEnveloppe)
-              .withSaturation(0.6)
-              .toColor();
-    } else if (progression > 0.85) { // Proche de la limite
-      couleurBarreEtTexteDisponibleEnveloppe =
-          HSLColor.fromColor(couleurDeBaseEnveloppe).withLightness(
-              (HSLColor
-                  .fromColor(couleurDeBaseEnveloppe)
-                  .lightness * 0.9).clamp(0.0, 1.0)
-          ).toColor();
-      // Ou une couleur fixe comme : Colors.orangeAccent[200]!;
-    }
-
-    return Material(
-      color: Colors.transparent,
-      // Le fond est géré par le conteneur parent dans _buildCategorieItem
-      child: InkWell(
-        onTap: () {
-          print('Enveloppe ${enveloppe.nom} cliquée');
-          // TODO: Naviguer vers les détails/transactions de l'enveloppe
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: <Widget>[
-                  if (enveloppe.icone != null) ...[
-                    // Utiliser une nuance de la couleur de base pour l'icône
-                    Icon(enveloppe.icone,
-                        color: HSLColor.fromColor(couleurDeBaseEnveloppe)
-                            .withAlpha(200)
-                            .toColor(), size: 20),
-                    const SizedBox(width: 12),
-                  ],
-                  Expanded(
-                    child: Text(
-                      enveloppe.nom,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                          color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${enveloppe.disponible.toStringAsFixed(2)} \$',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                        color: couleurBarreEtTexteDisponibleEnveloppe,
-                        // Couleur dynamique
-                        fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-              if (enveloppe.messageSous != null &&
-                  enveloppe.messageSous!.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Padding(
-                  padding: EdgeInsets.only(
-                      left: enveloppe.icone != null ? 32 : 0),
-                  child: Text(
-                    enveloppe.messageSous!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[400]),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 6),
-              Padding(
-                padding: EdgeInsets.only(
-                    left: enveloppe.icone != null ? 32 : 0),
-                child: LinearProgressIndicator(
-                  value: progression,
-                  backgroundColor: couleurDeBaseEnveloppe.withOpacity(0.25),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      couleurBarreEtTexteDisponibleEnveloppe),
-                  minHeight: 4,
-                  borderRadius: BorderRadius.circular(2), // Optionnel
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+// Les méthodes _buildCategoriesSection, _buildCategorieItem, _buildEnveloppeItem ont été déplacées
+// vers budget_categories_list.dart
 }

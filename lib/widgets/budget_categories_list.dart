@@ -1,289 +1,345 @@
-// lib/pages/ecran_liste_comptes.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // Pour le formatage des nombres/devises
+import 'package:toutie_budget/models/categorie_budget_model.dart';
+import 'package:toutie_budget/models/compte_model.dart'; // Nécessaire pour la logique d'affichage initial
 
-// Import du modèle Compte centralisé
-import '../models/compte_model.dart'; // Assurez-vous que ce chemin est correct
+class BudgetCategoriesList extends StatefulWidget {
+  final List<CategorieBudgetModel> categories;
+  final List<
+      Compte> comptesActuels; // Pour la logique d'affichage "Commencez..."
+  final bool isLoading; // Pour afficher un indicateur de chargement si nécessaire
 
-// Import de l'écran de création de compte
-import '../pages/ecran_creation_compte.dart';
-
-class EcranListeComptes extends StatefulWidget {
-  const EcranListeComptes({super.key});
+  const BudgetCategoriesList({
+    super.key,
+    required this.categories,
+    required this.comptesActuels,
+    required this.isLoading,
+  });
 
   @override
-  State<EcranListeComptes> createState() => _EcranListeComptesState();
+  State<BudgetCategoriesList> createState() => _BudgetCategoriesListState();
 }
 
-class _EcranListeComptesState extends State<EcranListeComptes> {
-  User? _currentUser;
-  Stream<List<Compte>>? _comptesStream;
-  Stream<double>? _soldeTotalStream;
+class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
+  // L'état de dépliage est maintenant géré à l'intérieur de ce widget
+  Map<String, bool> _etatsDepliageCategories = {};
 
   @override
   void initState() {
     super.initState();
-    _currentUser = FirebaseAuth.instance.currentUser;
-    if (_currentUser != null) {
-      _comptesStream = _getComptesStream();
-      _soldeTotalStream = _getSoldeTotalStream();
-    } else {
-      debugPrint(
-          "EcranListeComptes: Aucun utilisateur connecté à l'initialisation.");
-      // Gérer ici si l'utilisateur n'est pas connecté (ex: redirection)
+    _initialiserEtatsDepliage();
+  }
+
+  @override
+  void didUpdateWidget(covariant BudgetCategoriesList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si la liste des catégories change, réinitialiser les états de dépliage
+    // Cela évite de garder des états pour des catégories qui n'existent plus
+    // ou d'en manquer pour de nouvelles.
+    if (widget.categories.length != oldWidget.categories.length ||
+        !widget.categories
+            .every((cat) =>
+            oldWidget.categories.any((oldCat) => oldCat.id == cat.id))) {
+      _initialiserEtatsDepliage();
     }
   }
 
-  Stream<List<Compte>>? _getComptesStream() {
-    if (_currentUser == null)
-      return Stream.value([]); // Retourne un stream avec une liste vide
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(_currentUser!.uid)
-        .collection('comptes')
-        .orderBy('nom') // Optionnel: trier par nom, ou 'dateCreation'
-        .snapshots()
-        .map((querySnapshot) {
-      if (querySnapshot.docs.isEmpty) {
-        return <Compte>[];
-      }
-      final comptes = querySnapshot.docs.map((doc) {
-        try {
-          return Compte.fromSnapshot(
-              doc as DocumentSnapshot<Map<String, dynamic>>);
-        } catch (e, stacktrace) {
-          debugPrint("EcranListeComptes - ERREUR lors du mapping du Compte ${doc
-              .id}: $e");
-          debugPrint("Stacktrace: $stacktrace");
-          return null;
-        }
-      }).whereType<Compte>().toList(); // Filtre les nulls
-      return comptes;
-    }).handleError((error, stacktrace) {
-      debugPrint(
-          "EcranListeComptes - Erreur dans le stream des comptes: $error");
-      debugPrint("Stacktrace: $stacktrace");
-      return <Compte>[]; // Retourne une liste vide en cas d'erreur
-    });
-  }
-
-  Stream<double>? _getSoldeTotalStream() {
-    if (_currentUser == null) return Stream.value(0.0);
-    return _comptesStream?.map((listComptes) {
-      if (listComptes.isEmpty) return 0.0;
-      return listComptes.fold(
-          0.0, (sum, item) => sum + item.soldeActuel); // Utilise soldeActuel
-    }) ?? Stream.value(
-        0.0); // Fournit une valeur par défaut si _comptesStream est null
-  }
-
-  void _naviguerVersCreationCompte() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const EcranCreationCompte()),
+  void _initialiserEtatsDepliage() {
+    _etatsDepliageCategories = Map.fromIterable(
+      widget.categories,
+      key: (item) => (item as CategorieBudgetModel).id,
+      value: (item) =>
+      _etatsDepliageCategories[(item as CategorieBudgetModel).id] ?? false,
+      // Conserve l'état existant si possible, sinon false
     );
-
-    if (result == true && mounted) {
-      ScaffoldMessenger.of(context)
-        ..removeCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text("Nouveau compte ajouté."),
-          duration: Duration(seconds: 2),
-        ));
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    bool aucunCompteAvecSolde = widget.comptesActuels
+        .where((c) => c.soldeActuel != 0)
+        .isEmpty;
 
-    if (_currentUser == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Mes Comptes')),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Veuillez vous connecter pour voir vos comptes.",
-              style: TextStyle(fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
+    // ----- Logique d'affichage des messages ou du loader -----
+    if (widget.isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40.0),
+        child: Center(child: CircularProgressIndicator(color: Colors.white54)),
+      );
+    }
+
+    if (widget.categories.isEmpty && aucunCompteAvecSolde) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.category_outlined, size: 60, color: Colors.grey[600]),
+              const SizedBox(height: 16),
+              Text(
+                'Commencez par créer des catégories',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                    color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Organisez votre budget en allouant des fonds à différentes catégories et enveloppes.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Créer une catégorie'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 12),
+                ),
+                onPressed: () {
+                  print(
+                      'Naviguer vers la création de catégorie (depuis BudgetCategoriesList)');
+                  // TODO: Idéalement, ce bouton devrait appeler un callback
+                  // passé en paramètre pour gérer la navigation dans EcranBudget
+                  // Exemple: widget.onCreerCategorie?.call();
+                },
+              ),
+            ],
           ),
         ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mes Comptes'),
-        actions: [
-          StreamBuilder<double>(
-            stream: _soldeTotalStream,
-            builder: (context, snapshotSolde) {
-              if (snapshotSolde.connectionState == ConnectionState.waiting &&
-                  !snapshotSolde.hasData) {
-                return const Padding(
-                  padding: EdgeInsets.only(right: 16.0),
-                  child: SizedBox(width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white)),
-                );
-              }
-              if (snapshotSolde.hasError || !snapshotSolde.hasData ||
-                  snapshotSolde.data == null) {
-                return const SizedBox
-                    .shrink(); // Ne rien afficher en cas d'erreur ou pas de données
-              }
-              final total = snapshotSolde.data!;
-              final currencyFormat = NumberFormat.currency(
-                  locale: 'fr_CA', symbol: '\$', decimalDigits: 2);
+    if (widget.categories.isEmpty && !aucunCompteAvecSolde) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
+        child: Center(
+          child: Text(
+            'Aucune catégorie budgétaire pour ce mois.\nCommencez par en ajouter une !',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.grey[600]),
+          ),
+        ),
+      );
+    }
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Center(
-                  child: Text(
-                    currencyFormat.format(total),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                        color: total >= 0 ? Colors.greenAccent.shade400 : Colors
-                            .redAccent.shade400,
-                        fontWeight: FontWeight.bold
+    // ----- Affichage de la liste des catégories -----
+    return Column(
+      children: widget.categories.map((categorie) =>
+          _buildCategorieItem(theme, categorie)).toList(),
+    );
+  }
+
+  // Les méthodes _buildCategorieItem et _buildEnveloppeItem sont copiées ici
+  // depuis _EcranBudgetState, avec quelques ajustements minimes.
+
+  Widget _buildCategorieItem(ThemeData theme, CategorieBudgetModel categorie) {
+    bool estDeplie = _etatsDepliageCategories[categorie.id] ?? false;
+    // La logique de calcul de progression, couleurDeBase, couleurBarreEtTexteDisponible
+    // reste la même que dans EcranBudget.
+    double progression = 0;
+    if (categorie.alloueTotal > 0) {
+      progression = categorie.depenseTotal / categorie.alloueTotal;
+    }
+    progression = progression.clamp(0.0, 1.0);
+
+    Color couleurDeBase = categorie.couleur;
+    Color couleurBarreEtTexteDisponible = couleurDeBase;
+
+    if (categorie.disponibleTotal < 0) {
+      couleurBarreEtTexteDisponible = Colors.red[400]!;
+    } else if (progression == 1.0) {
+      couleurBarreEtTexteDisponible =
+          HSLColor.fromColor(couleurDeBase).withSaturation(0.7).withLightness(
+              HSLColor
+                  .fromColor(couleurDeBase)
+                  .lightness * 0.9).toColor();
+    } else if (progression > 0.85) {
+      couleurBarreEtTexteDisponible =
+          HSLColor.fromColor(couleurDeBase).withLightness((HSLColor
+              .fromColor(couleurDeBase)
+              .lightness * 0.85).clamp(0.0, 1.0)).toColor();
+    }
+
+    return Column(
+      children: [
+        InkWell(
+          onTap: () {
+            setState(() { // setState est maintenant celui de _BudgetCategoriesListState
+              _etatsDepliageCategories[categorie.id] = !estDeplie;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16.0, vertical: 12.0),
+            color: Colors.grey[850], // Ou la couleur de votre choix
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        categorie.nom.toUpperCase(),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${categorie.disponibleTotal.toStringAsFixed(2)} \$',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                          color: couleurBarreEtTexteDisponible,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    Icon(
+                      estDeplie ? Icons.keyboard_arrow_down : Icons
+                          .keyboard_arrow_right,
+                      color: Colors.white70,
+                    ),
+                  ],
+                ),
+                if (categorie.info.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    categorie.info,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white70),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: progression,
+                  backgroundColor: couleurDeBase.withOpacity(0.25),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      couleurBarreEtTexteDisponible),
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (estDeplie)
+          Container(
+            color: Colors.grey[900], // Ou la couleur de votre choix
+            child: Column(
+              children: categorie.enveloppes.map((enveloppe) {
+                return _buildEnveloppeItem(theme, enveloppe, couleurDeBase);
+              }).toList(),
+            ),
+          ),
+        Divider(height: 1, color: Colors.grey[700]),
+      ],
+    );
+  }
+
+  Widget _buildEnveloppeItem(ThemeData theme, EnveloppeModel enveloppe,
+      Color couleurCategorieParente) {
+    // La logique de calcul de progression, couleurDeBaseEnveloppe, couleurBarreEtTexteDisponibleEnveloppe
+    // reste la même que dans EcranBudget.
+    double progression = 0;
+    if (enveloppe.montantAlloue > 0) {
+      progression = (enveloppe.depense / enveloppe.montantAlloue);
+    }
+    progression = progression.clamp(0.0, 1.0);
+
+    Color couleurDeBaseEnveloppe = enveloppe.couleur ??
+        HSLColor.fromColor(couleurCategorieParente).withLightness((HSLColor
+            .fromColor(couleurCategorieParente)
+            .lightness * 0.8).clamp(0.0, 1.0)).toColor();
+    Color couleurBarreEtTexteDisponibleEnveloppe = couleurDeBaseEnveloppe;
+
+    if (enveloppe.disponible < 0) {
+      couleurBarreEtTexteDisponibleEnveloppe = Colors.redAccent[200]!;
+    } else if (progression == 1.0) {
+      couleurBarreEtTexteDisponibleEnveloppe =
+          HSLColor
+              .fromColor(couleurDeBaseEnveloppe)
+              .withSaturation(0.6)
+              .toColor();
+    } else if (progression > 0.85) {
+      couleurBarreEtTexteDisponibleEnveloppe =
+          HSLColor.fromColor(couleurDeBaseEnveloppe).withLightness((HSLColor
+              .fromColor(couleurDeBaseEnveloppe)
+              .lightness * 0.9).clamp(0.0, 1.0)).toColor();
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          print('Enveloppe ${enveloppe
+              .nom} cliquée (depuis BudgetCategoriesList)');
+          // TODO: Gérer la navigation/action, potentiellement via un callback
+          // widget.onEnveloppeTap?.call(enveloppe);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: <Widget>[
+                  if (enveloppe.icone != null) ...[
+                    Icon(enveloppe.icone,
+                        color: HSLColor.fromColor(couleurDeBaseEnveloppe)
+                            .withAlpha(200)
+                            .toColor(), size: 20),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Text(
+                      enveloppe.nom,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                          color: Colors.white),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: StreamBuilder<List<Compte>>(
-        stream: _comptesStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            debugPrint(
-                "EcranListeComptes - Erreur du StreamBuilder principal: ${snapshot
-                    .error}");
-            return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${enveloppe.disponible.toStringAsFixed(2)} \$',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                        color: couleurBarreEtTexteDisponibleEnveloppe,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+              if (enveloppe.messageSous != null &&
+                  enveloppe.messageSous!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Padding(
+                  padding: EdgeInsets.only(
+                      left: enveloppe.icone != null ? 32 : 0),
                   child: Text(
-                      'Erreur de chargement des comptes: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center),
-                ));
-          }
-          if (!snapshot.hasData || snapshot.data == null ||
-              snapshot.data!.isEmpty) {
-            return _buildEmptyState(theme);
-          }
-
-          final comptes = snapshot.data!;
-          return ListView.separated(
-            itemCount: comptes.length,
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            // Padding vertical pour la liste entière
-            separatorBuilder: (context, index) =>
-                Divider(
-                  height: 1,
-                  // Hauteur du Divider (espace qu'il occupe + la ligne)
-                  thickness: 0.5,
-                  // Épaisseur de la ligne elle-même
-                  color: Colors.grey[700],
-                  // Couleur de la ligne
-                  indent: 16,
-                  // Espace à gauche avant le début de la ligne
-                  endIndent: 16, // Espace à droite avant la fin de la ligne
+                    enveloppe.messageSous!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[400]),
+                  ),
                 ),
-            itemBuilder: (context, index) {
-              final compte = comptes[index];
-              return _buildCompteListItem(theme, compte);
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _naviguerVersCreationCompte,
-        label: const Text('Nouveau Compte'),
-        icon: const Icon(Icons.add),
-        // Vous pouvez décommenter et personnaliser le style si besoin
-        // style: ElevatedButton.styleFrom(
-        //   backgroundColor: theme.colorScheme.primary,
-        //   foregroundColor: theme.colorScheme.onPrimary,
-        // ),
-      ),
-    );
-  }
-
-  Widget _buildCompteListItem(ThemeData theme, Compte compte) {
-    final currencyFormat = NumberFormat.currency(
-        locale: 'fr_CA', symbol: '\$', decimalDigits: 2);
-    final Color couleurCompte = compte
-        .couleur; // `compte.couleur` doit être non-null grâce à la valeur par défaut dans fromSnapshot
-    final double soldeAAfficher = compte.soldeActuel;
-
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: couleurCompte.withOpacity(0.2),
-        child: Icon(Icons.account_balance_wallet_outlined, color: couleurCompte,
-            size: 24),
-      ),
-      title: Text(
-        compte.nom,
-        style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w500),
-      ),
-      subtitle: Text(
-        compte.typeDisplayName, // Utilise le getter pour un nom de type formaté
-        style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[400]),
-      ),
-      trailing: Text(
-        currencyFormat.format(soldeAAfficher),
-        style: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: soldeAAfficher >= 0 ? theme.colorScheme.primary : theme
-              .colorScheme.error,
-        ),
-      ),
-      onTap: () {
-        debugPrint('Compte ${compte.nom} cliqué. ID: ${compte.id}');
-        // TODO: Naviguer vers l'écran de détails du compte si nécessaire
-        // Navigator.push(context, MaterialPageRoute(builder: (context) => EcranDetailsCompte(compteId: compte.id)));
-      },
-      contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16.0, vertical: 10.0), // Padding pour chaque ListTile
-    );
-  }
-
-  Widget _buildEmptyState(ThemeData theme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            Icon(Icons.account_balance_outlined, size: 80,
-                color: Colors.grey[600]),
-            const SizedBox(height: 20),
-            Text(
-              'Aucun compte pour le moment',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                  color: Colors.grey[700]),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Appuyez sur le bouton "+" pour ajouter votre premier compte.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              ],
+              const SizedBox(height: 6),
+              Padding(
+                padding: EdgeInsets.only(
+                    left: enveloppe.icone != null ? 32 : 0),
+                child: LinearProgressIndicator(
+                  value: progression,
+                  backgroundColor: couleurDeBaseEnveloppe.withOpacity(0.25),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      couleurBarreEtTexteDisponibleEnveloppe),
+                  minHeight: 4,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
