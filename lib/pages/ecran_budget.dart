@@ -571,30 +571,45 @@ class _EcranBudgetState extends State<EcranBudget> {
   }
 
   List<Widget> _buildAppBarActions(ThemeData theme) {
+    print(">>> EcranBudget - _buildAppBarActions - _currentUser: $_currentUser");
     return [
       if (_currentUser != null)
-        IconButton(
-          // NOUVEAU BOUTON
-          icon: const Icon(Icons.multiple_stop, color: Colors.white), // Ou Icons.swap_horiz, Icons.compare_arrows, Icons.currency_exchange
+        IconButton( // Premier IconButton conditionnel
+          icon: const Icon(Icons.multiple_stop, color: Colors.white),
           tooltip: 'Virer de l\'argent entre enveloppes',
           onPressed: () {
-            if (!mounted) return;
-            // TODO: Implémenter la navigation vers EcranVirerArgent
-            Navigator.push(
-              context,
-              // Assurez-vous d'avoir importé EcranVirerArgent
-              MaterialPageRoute(builder: (context) => const EcranVirerArgent()),
-            );
-            print("Bouton Virer de l'argent cliqué");
+            print(">>> BOUTON 'Virer de l'argent' DANS AppBar EST PRESSÉ <<<");
+            if (!mounted) {
+              print(">>> EcranBudget - WARNING: Tentative de navigation alors que le widget n'est pas monté !");
+              return;
+            }
+            try {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) {
+                  print(">>> MaterialPageRoute - BUILDER pour EcranVirerArgent EST APPELÉ <<<");
+                  return const EcranVirerArgent();
+                }),
+              ).then((_) {
+                print(">>> EcranVirerArgent A ÉTÉ POPPED (fermé) et est revenu à EcranBudget <<<");
+              }).catchError((error) {
+                print(">>> ERREUR PENDANT OU APRÈS LA NAVIGATION vers EcranVirerArgent: $error <<<");
+              });
+              print(">>> APPEL À Navigator.push(...) pour EcranVirerArgent TERMINÉ (pas d'erreur synchrone immédiate) <<<");
+            } catch (e, s) {
+              print(">>> ERREUR SYNCHRONE FATALE LORS DE LA TENTATIVE DE NAVIGUER vers EcranVirerArgent: $e\nStackTrace: $s <<<");
+            }
           },
-        ),
+        ), // <-- La virgule est implicite ici si un autre élément suit, mais c'est bien
+
       if (_currentUser != null)
-        IconButton(
+        IconButton( // Deuxième IconButton conditionnel
           icon: const Icon(Icons.category_outlined, color: Colors.white),
           tooltip: 'Gérer les catégories et enveloppes',
           onPressed: _naviguerVersGestionCategories,
-        ),
-      IconButton(
+        ), // <-- Virgule ici car un autre élément suit
+
+      IconButton( // Widget inconditionnel
         icon: const Icon(Icons.menu, color: Colors.white),
         tooltip: _currentUser != null ? 'Menu principal' : 'Options',
         onPressed: () {
@@ -606,7 +621,7 @@ class _EcranBudgetState extends State<EcranBudget> {
             // TODO: Logique alternative si pas de drawer
           }
         },
-      ),
+      ), // <-- Virgule optionnelle ici si c'est le dernier élément
     ];
   }
 

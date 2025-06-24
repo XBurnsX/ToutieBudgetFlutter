@@ -1,146 +1,142 @@
-// lib/screens/ecran_virer_argent.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 
 import '../../models/enveloppe_model.dart';
-import '../../services/service_transfert_argent.dart';
+import '../../models/item_de_selection_transfert.dart';
+import '../../services/service_transfert_argent.dart'; // Pour FirebaseAuth.instance
 
-// Classe helper pour les items dans les Dropdowns
-class ItemDeSelectionTransfert {
-  final String id;
-  final String nom;
-  double solde;
-  final bool estPretAPlacer;
-  final Color? couleurAffichage;
-
-  ItemDeSelectionTransfert({
-    required this.id,
-    required this.nom,
-    required this.solde,
-    this.estPretAPlacer = false,
-    this.couleurAffichage,
-  });
-
-  @override
-  String toString() => nom;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-          other is ItemDeSelectionTransfert &&
-              runtimeType == other.runtimeType &&
-              id == other.id;
-
-  @override
-  int get hashCode => id.hashCode;
-}
 
 class EcranVirerArgent extends StatefulWidget {
+  // Si vous avez besoin de passer des données initiales à cet écran, déclarez-les ici
+  // final String argumentInitial;
+  // const EcranVirerArgent({Key? key, required this.argumentInitial}) : super(key: key);
+
   const EcranVirerArgent({Key? key}) : super(key: key);
 
   @override
-  State<EcranVirerArgent> createState() => _EcranVirerArgentState();
+  _EcranVirerArgentState createState() => _EcranVirerArgentState();
 }
 
 class _EcranVirerArgentState extends State<EcranVirerArgent> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  late final ServiceTransfertArgent _serviceTransfert;
+  final FirebaseAuth _auth = FirebaseAuth
+      .instance; // Accès direct à FirebaseAuth
+
   User? _currentUser;
-
-  String _valeurSaisie = "0";
-  final currencyFormatter =
-  NumberFormat.currency(locale: 'fr_CA', symbol: '\$');
-
-  List<ItemDeSelectionTransfert> _tousLesItemsSelectionnables = [];
-  Map<String, EnveloppeModel> _mapEnveloppesChargees = {};
-  Map<String, String> _mapEnveloppeIdACategorieId = {};
-
-  ItemDeSelectionTransfert? _sourceSelectionnee;
-  ItemDeSelectionTransfert? _destinationSelectionnee;
+  late ServiceTransfertArgent _serviceTransfert; // Sera initialisé dans initState
 
   bool _isLoading = true;
   String? _errorMessage;
-  double _soldePretAPlacerActuel = 0.0;
-  Color? _couleurComptePrincipalPourPAP;
 
-  final TextEditingController _montantController =
-  TextEditingController(text: "0");
+  List<ItemDeSelectionTransfert> _tousLesItemsSelectionnables = [];
+  Map<String, EnveloppeModel> _mapEnveloppesChargees = {};
+  Map<String, String> _mapEnveloppeIdACategorieId = {
+  }; // Map<enveloppeId, categorieId>
+
+  ItemDeSelectionTransfert? _selectionSource;
+  ItemDeSelectionTransfert? _selectionDestination;
+  double? _montantATransferer;
+  double _soldePretAPlacerActuel = 0.0;
+
+  final TextEditingController _montantController = TextEditingController();
+  String _valeurClavier = "0";
 
   @override
   void initState() {
     super.initState();
-    _serviceTransfert = ServiceTransfertArgent(_firestore);
+    print("[EcranVirerArgent - initState] Début de initState.");
+
     _currentUser = _auth.currentUser;
+    _serviceTransfert =
+        ServiceTransfertArgent(_firestore); // Initialisation du service
 
-    if (_currentUser != null) {
-      _chargerDonneesInitialesAvecAffichage();
+    if (_currentUser == null) {
+      print(
+          "[EcranVirerArgent - initState] ERREUR CRITIQUE: Utilisateur non connecté lors de l'initialisation !");
+      // Gérer cet état : afficher un message, empêcher le chargement, ou naviguer ailleurs
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage =
+            "Session utilisateur invalide ou expirée. Veuillez vous reconnecter.";
+          });
+          // Optionnel : Rediriger vers l'écran de connexion après un court délai
+          // Future.delayed(Duration(seconds: 3), () {
+          //   if (mounted) Navigator.of(context).pushReplacementNamed('/ecranDeConnexion');
+          // });
+        }
+      });
     } else {
-      _handleUserNotLoggedIn();
+      print(
+          "[EcranVirerArgent - initState] Utilisateur initialisé : UID = ${_currentUser!
+              .uid}, Email = ${_currentUser!.email}");
+      _chargerDonneesInitialesAvecAffichage();
     }
-    _montantController.addListener(() {
-      // Synchroniser _valeurSaisie avec _montantController si modifié de l'extérieur (peu probable ici)
-      // La principale mise à jour se fait via _onValeurSaisieChange qui met à jour le controller.
-      // Cette vérification évite une boucle si on saisit directement dans un TextField (pas le cas ici avec le numpad custom)
-      if (_montantController.text.replaceAll(',', '.') != _valeurSaisie) {
-        _onValeurSaisieChange(_montantController.text);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _montantController.dispose();
-    super.dispose();
-  }
-
-  void _handleUserNotLoggedIn() {
-    setState(() {
-      _isLoading = false;
-      _errorMessage = "Utilisateur non connecté.";
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-              Text("Veuillez vous connecter pour effectuer un virement.")),
-        );
-        Navigator.of(context).pop();
-      }
-    });
   }
 
   Future<void> _chargerDonneesInitialesAvecAffichage() async {
+    print("[EcranVirerArgent - _chargerDonneesInitialesAvecAffichage] Début.");
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
+
     await _chargerDonneesInitiales();
+
     if (mounted) {
       setState(() {
         _isLoading = false;
       });
     }
+    print("[EcranVirerArgent - _chargerDonneesInitialesAvecAffichage] Fin.");
   }
 
   Future<void> _chargerDonneesInitiales() async {
-    if (_currentUser == null) return;
+    print(
+        "[EcranVirerArgent - _chargerDonneesInitiales] Début du chargement des données réelles.");
+    if (_currentUser == null) {
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: _currentUser est NULL au début du chargement.");
+      if (mounted) {
+        // L'errorMessage sera déjà défini par initState si _currentUser était null au départ
+        // Sinon, on le définit ici si _currentUser devient null entre-temps (peu probable mais possible)
+        _errorMessage = _errorMessage ?? "Utilisateur non authentifié.";
+      }
+      return;
+    }
 
     try {
-      final userDoc =
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Tentative de chargement du document pour UID: ${_currentUser!
+              .uid}");
+      final DocumentSnapshot<Map<String, dynamic>> userDoc =
       await _firestore.collection('users').doc(_currentUser!.uid).get();
-      _soldePretAPlacerActuel =
-          (userDoc.data()?['soldePretAPlacerGlobal'] as num? ?? 0.0)
-              .toDouble();
 
-      _couleurComptePrincipalPourPAP =
-          Theme
-              .of(context)
-              .colorScheme
-              .secondary; // Couleur par défaut
+      if (!userDoc.exists || userDoc.data() == null) {
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: Document utilisateur introuvable ou vide pour UID: ${_currentUser!
+                .uid}");
+        throw Exception("Document utilisateur introuvable ou vide.");
+      }
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Document utilisateur TROUVÉ pour UID: ${_currentUser!
+              .uid}. Data: ${userDoc.data()}");
+
+      // Vérification spécifique du champ soldePretAPlacerGlobal
+      if (!userDoc.data()!.containsKey('soldePretAPlacerGlobal')) {
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: Champ 'soldePretAPlacerGlobal' MANQUANT dans le document utilisateur UID: ${_currentUser!
+                .uid}");
+        throw Exception(
+            "Champ 'soldePretAPlacerGlobal' manquant dans les données utilisateur.");
+      }
+      _soldePretAPlacerActuel =
+          (userDoc.data()!['soldePretAPlacerGlobal'] as num? ?? 0.0).toDouble();
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Solde Prêt à Placer actuel: $_soldePretAPlacerActuel");
 
       List<ItemDeSelectionTransfert> itemsTemp = [];
       _mapEnveloppesChargees.clear();
@@ -151,26 +147,37 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
         nom: 'Prêt à placer',
         solde: _soldePretAPlacerActuel,
         estPretAPlacer: true,
-        couleurAffichage: _couleurComptePrincipalPourPAP,
       ));
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Item 'Prêt à placer' ajouté.");
 
       final categoriesSnapshot = await _firestore
           .collection('users')
           .doc(_currentUser!.uid)
           .collection('categories')
-          .orderBy('nom')
           .get();
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Nombre de catégories trouvées: ${categoriesSnapshot
+              .docs.length}");
 
-      for (var catDoc in categoriesSnapshot.docs) {
-        final enveloppesSnapshot = await catDoc.reference
-            .collection('enveloppes')
-            .orderBy('ordre')
-            .get();
+      for (QueryDocumentSnapshot catDoc in categoriesSnapshot.docs) {
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] Traitement catégorie ID: ${catDoc
+                .id}, Nom: ${catDoc.data().toString().contains('nom') ? (catDoc
+                .data() as Map<String, dynamic>)['nom'] : 'N/A'}");
+        final enveloppesSnapshot = await catDoc.reference.collection(
+            'enveloppes').orderBy('nom').get();
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] Nombre d'enveloppes pour catégorie ${catDoc
+                .id}: ${enveloppesSnapshot.docs.length}");
 
-        for (var envDoc in enveloppesSnapshot.docs) {
+        for (QueryDocumentSnapshot<
+            Map<String, dynamic>> envDoc in enveloppesSnapshot.docs) {
           try {
-            EnveloppeModel env = EnveloppeModel.fromSnapshot(
-                envDoc as DocumentSnapshot<Map<String, dynamic>>);
+            print(
+                "[EcranVirerArgent - _chargerDonneesInitiales] Tentative de parsing enveloppe ID: ${envDoc
+                    .id}");
+            EnveloppeModel env = EnveloppeModel.fromSnapshot(envDoc);
             _mapEnveloppesChargees[env.id] = env;
             _mapEnveloppeIdACategorieId[env.id] = catDoc.id;
 
@@ -179,399 +186,298 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
               nom: env.nom,
               solde: env.montantAlloueActuellement,
               estPretAPlacer: false,
-              couleurAffichage: null, // Ou une couleur basée sur la catégorie/enveloppe
             ));
-          } catch (e) {
             print(
-                "Erreur de parsing pour l'enveloppe ${envDoc
-                    .id} dans catégorie ${catDoc.id}: $e");
+                "[EcranVirerArgent - _chargerDonneesInitiales] Enveloppe parsée et ajoutée: ${env
+                    .nom}, ID: ${env.id}");
+          } catch (e, s) {
+            print(
+                "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR PARSING ENVELOPPE: L'enveloppe ID '${envDoc
+                    .id}' dans catégorie '${catDoc
+                    .id}' n'a pas pu être parsée. Erreur: $e\nStackTrace: $s");
+            // Décidez si vous voulez ajouter un _errorMessage partiel ou simplement ignorer l'enveloppe
           }
         }
       }
 
       if (itemsTemp.length > 1) {
-        List<ItemDeSelectionTransfert> enveloppesTriables =
-        itemsTemp.sublist(1);
-        enveloppesTriables
-            .sort((a, b) => a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
-        _tousLesItemsSelectionnables = [itemsTemp.first] + enveloppesTriables;
+        List<ItemDeSelectionTransfert> enveloppesSeulement = itemsTemp.where((
+            item) => !item.estPretAPlacer).toList();
+        enveloppesSeulement.sort((a, b) =>
+            a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
+        _tousLesItemsSelectionnables =
+            [itemsTemp.firstWhere((item) => item.estPretAPlacer)] +
+                enveloppesSeulement;
       } else {
         _tousLesItemsSelectionnables = itemsTemp;
       }
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Nombre total d'items sélectionnables: ${_tousLesItemsSelectionnables
+              .length}");
 
-      if (!mounted) return;
+      _mettreAJourSelectionsInitiales();
+    } catch (e, s) {
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR GLOBALE pendant le chargement: $e\nStackTrace: $s");
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Erreur de chargement des données : ${e.toString()}";
+        });
+      }
+    }
+    print(
+        "[EcranVirerArgent - _chargerDonneesInitiales] Fin du chargement des données réelles.");
+  }
 
-      // Logique de sélection initiale simplifiée pour source et destination
-      if (_tousLesItemsSelectionnables.isNotEmpty) {
-        final idSourcePrecedente = _sourceSelectionnee?.id;
-        _sourceSelectionnee = _tousLesItemsSelectionnables.firstWhere(
-              (item) =>
-          item.id ==
-              (idSourcePrecedente ?? ServiceTransfertArgent.idPretAPlacer),
-          orElse: () =>
-              _tousLesItemsSelectionnables.firstWhere(
-                    (i) => i.estPretAPlacer,
-                orElse: () => _tousLesItemsSelectionnables.first,
-              ),
-        );
+  void _mettreAJourSelectionsInitiales() {
+    print("[EcranVirerArgent - _mettreAJourSelectionsInitiales] Début.");
+    if (_tousLesItemsSelectionnables.isNotEmpty) {
+      _selectionSource = _tousLesItemsSelectionnables.firstWhere(
+            (item) => item.id == ServiceTransfertArgent.idPretAPlacer,
+        orElse: () => _tousLesItemsSelectionnables.first,
+      );
+      print(
+          "[EcranVirerArgent - _mettreAJourSelectionsInitiales] Sélection source initiale: ${_selectionSource
+              ?.nom}");
 
-        final idDestinationPrecedente = _destinationSelectionnee?.id;
-        List<ItemDeSelectionTransfert> optionsDestinationPossibles =
-        _tousLesItemsSelectionnables
-            .where((item) => item.id != _sourceSelectionnee!.id)
-            .toList();
-
-        if (optionsDestinationPossibles.isNotEmpty) {
-          try {
-            _destinationSelectionnee = optionsDestinationPossibles.firstWhere(
-                  (item) => item.id == idDestinationPrecedente,
-            );
-          } catch (e) {
-            _destinationSelectionnee = optionsDestinationPossibles.first;
-          }
-        } else {
-          _destinationSelectionnee = null;
+      if (_tousLesItemsSelectionnables.length > 1) {
+        _selectionDestination = _tousLesItemsSelectionnables
+            .where((item) => item.id != ServiceTransfertArgent.idPretAPlacer)
+            .firstOrNull; // Prend la première enveloppe non "Prêt à placer"
+        if (_selectionDestination == null &&
+            _selectionSource?.id != _tousLesItemsSelectionnables.last.id) {
+          // Fallback si "Prêt à placer" est le seul ou si on veut éviter de sélectionner la même source et dest
+          _selectionDestination = _tousLesItemsSelectionnables.last;
         }
       } else {
-        _sourceSelectionnee = null;
-        _destinationSelectionnee = null;
+        _selectionDestination =
+        null; // Pas de destination si "Prêt à placer" est le seul item
       }
-    } catch (e, s) {
-      print("Erreur lors du chargement des données initiales: $e\n$s");
-      if (mounted) {
-        setState(() {
-          _errorMessage = "Erreur de chargement: ${e.toString()}";
-        });
-      }
-    }
-  }
-
-  void _onValeurSaisieChange(String nouvelleValeur) {
-    String valeurNettoyee = nouvelleValeur.replaceAll(',', '.');
-    if (valeurNettoyee.indexOf('.') != valeurNettoyee.lastIndexOf('.')) {
-      valeurNettoyee = _valeurSaisie.replaceAll(
-          ',', '.'); // Revenir à la dernière valeur valide
-    }
-
-    if (valeurNettoyee.contains('.')) {
-      final parts = valeurNettoyee.split('.');
-      if (parts.length > 1 && parts[1].length > 2) {
-        parts[1] = parts[1].substring(0, 2);
-        valeurNettoyee = parts.join('.');
-      }
-    }
-
-    // Gérer le cas où la valeur nettoyée est juste "."
-    if (valeurNettoyee == ".") {
-      valeurNettoyee = "0.";
-    }
-    // Gérer le cas où la valeur est vide après nettoyage (ex: après avoir effacé "0.")
-    if (valeurNettoyee.isEmpty) {
-      valeurNettoyee = "0";
-    }
-
-
-    setState(() {
-      _valeurSaisie = valeurNettoyee;
-      if (_montantController.text != _valeurSaisie) {
-        // Formatter pour le cas où _valeurSaisie est "0." mais on veut "0." dans le controller
-        String textPourController = _valeurSaisie;
-        _montantController.text = textPourController;
-        _montantController.selection = TextSelection.fromPosition(
-            TextPosition(offset: _montantController.text.length));
-      }
-    });
-  }
-
-  void _ajouterChiffre(String chiffre) {
-    String valeurActuelle = _valeurSaisie.replaceAll(',', '.');
-    String nouvelleValeur;
-
-    if (chiffre == ".") {
-      if (valeurActuelle.contains(".")) return; // Déjà un point
-      nouvelleValeur = valeurActuelle.isEmpty ? "0." : valeurActuelle + ".";
+      print(
+          "[EcranVirerArgent - _mettreAJourSelectionsInitiales] Sélection destination initiale: ${_selectionDestination
+              ?.nom}");
     } else {
-      if (valeurActuelle == "0") {
-        nouvelleValeur = chiffre;
+      _selectionSource = null;
+      _selectionDestination = null;
+      print(
+          "[EcranVirerArgent - _mettreAJourSelectionsInitiales] Aucun item sélectionnable, sélections mises à null.");
+    }
+    _valeurClavier = "0";
+    _montantController.text = _valeurClavier;
+    _montantATransferer = 0.0;
+    print("[EcranVirerArgent - _mettreAJourSelectionsInitiales] Fin.");
+  }
+
+  // --- Logique du clavier et du transfert (simplifiée pour se concentrer sur le chargement) ---
+  void _onClavierNumeroAppuye(String valeur) {
+    setState(() {
+      if (_valeurClavier == "0") {
+        _valeurClavier = valeur;
       } else {
-        nouvelleValeur = valeurActuelle + chiffre;
+        _valeurClavier += valeur;
       }
-    }
-    _onValeurSaisieChange(nouvelleValeur);
+      _montantController.text = _valeurClavier;
+      _montantATransferer = double.tryParse(_valeurClavier);
+    });
   }
 
-  void _effacerDernierChiffre() {
-    String valeurActuelle = _valeurSaisie.replaceAll(',', '.');
-    if (valeurActuelle.isNotEmpty) {
-      String nouvelleValeur =
-      valeurActuelle.substring(0, valeurActuelle.length - 1);
-      if (nouvelleValeur.isEmpty || nouvelleValeur == "-") {
-        nouvelleValeur = "0";
-      }
-      _onValeurSaisieChange(nouvelleValeur);
-    }
+  void _onClavierEffacerAppuye() {
+    setState(() {
+      _valeurClavier = "0";
+      _montantController.text = _valeurClavier;
+      _montantATransferer = 0.0;
+    });
   }
 
-  String _formatCurrencyDisplayForInput(String value) {
-    final doubleValue = double.tryParse(value.replaceAll(',', '.')) ?? 0.0;
-    // Pour l'affichage principal, on formate toujours.
-    // Pour le _montantController, on garde la valeur brute pour la saisie.
-    return currencyFormatter.format(doubleValue);
-  }
-
-  void _showErrorSnackBar(String message) {
-    if (mounted) {
+  void _effectuerLeTransfert() async {
+    if (_selectionSource == null || _selectionDestination == null ||
+        _montantATransferer == null || _montantATransferer! <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.redAccent,
-        ),
+        const SnackBar(content: Text(
+            "Veuillez sélectionner une source, une destination et un montant valide.")),
       );
-    }
-  }
-
-  Future<void> _effectuerVirement() async {
-    final double? montant = double.tryParse(_valeurSaisie.replaceAll(',', '.'));
-
-    if (_currentUser == null) {
-      _showErrorSnackBar('Utilisateur non identifié.');
       return;
     }
-    if (_sourceSelectionnee == null || _destinationSelectionnee == null) {
-      _showErrorSnackBar('Veuillez sélectionner la source et la destination.');
-      return;
-    }
-    if (montant == null || montant <= 0) {
-      _showErrorSnackBar('Veuillez saisir un montant valide.');
-      return;
-    }
-    // La vérification source != destination est implicitement gérée par la logique des dropdowns
-    // mais une double vérification ici est sans danger.
-    if (_sourceSelectionnee!.id == _destinationSelectionnee!.id) {
-      _showErrorSnackBar(
-          'La source et la destination doivent être différentes.');
+    if (_selectionSource!.id == _selectionDestination!.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(
+            "La source et la destination ne peuvent pas être identiques.")),
+      );
       return;
     }
 
-    // Vérification des soldes (déjà partiellement faite mais bon de revérifier)
-    if (_sourceSelectionnee!.estPretAPlacer) {
-      if (_soldePretAPlacerActuel < montant) {
-        _showErrorSnackBar('Le montant dépasse le solde "Prêt à placer".');
-        return;
-      }
-    } else {
-      EnveloppeModel? envSource =
-      _mapEnveloppesChargees[_sourceSelectionnee!.id];
-      if (envSource == null || envSource.montantAlloueActuellement < montant) {
-        _showErrorSnackBar(
-            'Le montant dépasse le solde de l\'enveloppe source "${_sourceSelectionnee!
-                .nom}".');
-        return;
-      }
+    // Logique de vérification du solde (simplifiée)
+    if (!_selectionSource!.estPretAPlacer &&
+        _selectionSource!.solde < _montantATransferer!) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+            "Solde insuffisant dans l'enveloppe source: ${_selectionSource!
+                .nom}")),
+      );
+      return;
     }
+    if (_selectionSource!.estPretAPlacer &&
+        _soldePretAPlacerActuel < _montantATransferer!) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Solde 'Prêt à placer' insuffisant.")),
+      );
+      return;
+    }
+
 
     setState(() {
-      _isLoading = true; // Pour l'indicateur sur le bouton de virement
-      _errorMessage = null;
-    });
-
-    EnveloppeModel? enveloppeSourceDetails;
-    String? categorieIdSource;
-    if (!_sourceSelectionnee!.estPretAPlacer) {
-      enveloppeSourceDetails = _mapEnveloppesChargees[_sourceSelectionnee!.id];
-      categorieIdSource = _mapEnveloppeIdACategorieId[_sourceSelectionnee!.id];
-      if (enveloppeSourceDetails == null || categorieIdSource == null) {
-        _showErrorSnackBar("Détails de l'enveloppe source introuvables.");
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-    }
-
-    EnveloppeModel? enveloppeDestinationDetails;
-    String? categorieIdDestination;
-    if (!_destinationSelectionnee!.estPretAPlacer) {
-      enveloppeDestinationDetails =
-      _mapEnveloppesChargees[_destinationSelectionnee!.id];
-      categorieIdDestination =
-      _mapEnveloppeIdACategorieId[_destinationSelectionnee!.id];
-      if (enveloppeDestinationDetails == null ||
-          categorieIdDestination == null) {
-        _showErrorSnackBar(
-            "Détails de l'enveloppe destination introuvables.");
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-    }
+      _isLoading = true;
+    }); // Afficher le chargement pendant le transfert
 
     try {
-      final nouveauSoldePAPCalculeOuNull =
-      await _serviceTransfert.effectuerVirement(
-        userId: _currentUser!.uid,
-        montant: montant,
-        sourceId: _sourceSelectionnee!.id,
-        enveloppeSourceDetails: enveloppeSourceDetails,
-        destinationId: _destinationSelectionnee!.id,
-        enveloppeDestinationDetails: enveloppeDestinationDetails,
-        soldePretAPlacerActuel: _soldePretAPlacerActuel,
-        idCategorieSource: categorieIdSource,
-        idCategorieDestination: categorieIdDestination,
+      print(
+          "[EcranVirerArgent - _effectuerLeTransfert] Tentative de transfert de $_montantATransferer de ${_selectionSource!
+              .nom} vers ${_selectionDestination!.nom}");
+      await _serviceTransfert.transfererArgent(
+        utilisateurId: _currentUser!.uid,
+        sourceId: _selectionSource!.id,
+        destinationId: _selectionDestination!.id,
+        montant: _montantATransferer!,
+        mapEnveloppes: _mapEnveloppesChargees,
+        mapEnveloppeIdACategorieId: _mapEnveloppeIdACategorieId,
+        sourceEstPretAPlacer: _selectionSource!.estPretAPlacer,
+        destinationEstPretAPlacer: _selectionDestination!.estPretAPlacer,
       );
 
-      // Le rechargement des données va mettre à jour tous les soldes, y compris PAP.
-      // Si le service retournait le nouveau solde PAP, on pourrait l'utiliser pour un update local plus rapide
-      // mais _chargerDonneesInitiales() est plus complet.
-      // if (nouveauSoldePAPCalculeOuNull != null && mounted) {
-      //   setState(() {
-      //     _soldePretAPlacerActuel = nouveauSoldePAPCalculeOuNull;
-      //   });
-      // }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  'Virement de ${_formatCurrencyDisplayForInput(
-                      montant.toString())} effectué avec succès!'),
-              backgroundColor: Colors.green),
-        );
-        setState(() {
-          _valeurSaisie = "0";
-          _montantController.text = "0"; // Réinitialiser après succès
-        });
-      }
-      await _chargerDonneesInitialesAvecAffichage(); // Recharger pour mettre à jour tous les soldes
-    } on TransfertException catch (e) {
-      _showErrorSnackBar(e.message);
-    } catch (e, s) {
-      print("Erreur inattendue lors du virement: $e\n$s");
-      _showErrorSnackBar('Erreur inattendue: ${e.toString()}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Transfert effectué avec succès !")),
+      );
+      // Recharger les données pour refléter les changements
+      await _chargerDonneesInitialesAvecAffichage();
+    } catch (e) {
+      print(
+          "[EcranVirerArgent - _effectuerLeTransfert] ERREUR lors du transfert: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur lors du transfert: ${e.toString()}")),
+      );
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false; // Fin du chargement du virement
+          _isLoading = false;
         });
       }
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    bool isCurrentlyInitialLoading = _isLoading && _tousLesItemsSelectionnables.isEmpty;
-    bool hasErrorOnInitialLoad =
-        _errorMessage != null && _tousLesItemsSelectionnables.isEmpty;
-
+    print(
+        "[EcranVirerArgent - build] Construction du widget. isLoading: $_isLoading, errorMessage: $_errorMessage");
     return Scaffold(
-      appBar: AppBar(title: const Text('Virer de l\'argent')),
-      body: isCurrentlyInitialLoading
+      appBar: AppBar(
+        title: const Text('Virer de l\'Argent'),
+      ),
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : hasErrorOnInitialLoad
+          : _errorMessage != null
           ? Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text(_errorMessage!,
-              style: const TextStyle(color: Colors.red),
-              textAlign: TextAlign.center),
+          child: Text(
+            _errorMessage!,
+            style: const TextStyle(color: Colors.red, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
         ),
       )
-          : Column( // Column principale
-        children: [
-          // 1. Espace flexible au-dessus du montant pour le centrer verticalement
-          Expanded( // Ce Expanded prend l'espace en haut
-            child: Center( // Ce Center centre son enfant dans l'Expanded
-              child: Padding( // Padding global pour le bloc du montant
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Align( // Aligne son enfant (le Text avec son padding) à droite
-                  alignment: Alignment.centerRight,
-                  child: Padding( // Padding spécifique pour décaler le texte du bord droit
-                    padding: const EdgeInsets.only(right: 16.0), // <-- Ajustez ce padding pour l'espacement droit
-                    child: Text(
-                      _formatCurrencyDisplayForInput(_valeurSaisie),
-                      style: theme.textTheme.displayMedium?.copyWith( // <-- Ajustez 'displayMedium' pour la taille
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          : _tousLesItemsSelectionnables.isEmpty && _currentUser != null
+          ? Center( // Cas où tout est chargé mais il n'y a pas d'enveloppes (sauf peut-être "Prêt à placer" seul)
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            _tousLesItemsSelectionnables.any((item) =>
+            item.estPretAPlacer && _tousLesItemsSelectionnables.length == 1)
+                ? "Veuillez créer des enveloppes pour pouvoir effectuer des virements."
+                : "Aucune enveloppe ou source de fonds disponible. Veuillez vérifier votre configuration ou créer des enveloppes.",
+            textAlign: TextAlign.center,
           ),
-
-          // 2. Dropdowns de sélection (juste au-dessus du Numpad)
+        ),
+      )
+          : Column( // Affichage principal si tout va bien
+        children: [
+          // --- Section des Dropdowns ---
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.all(16.0),
             child: Column(
-              mainAxisSize: MainAxisSize.min, // Important pour que cette Column ne prenne pas trop de hauteur
               children: [
-                _buildDropdown(
-                  label: 'De:',
-                  selectedValue: _sourceSelectionnee,
-                  items: _tousLesItemsSelectionnables,
+                // Dropdown Source
+                DropdownButtonFormField<ItemDeSelectionTransfert>(
+                  decoration: const InputDecoration(labelText: 'De (Source)'),
+                  value: _selectionSource,
+                  items: _tousLesItemsSelectionnables.map((item) {
+                    return DropdownMenuItem<ItemDeSelectionTransfert>(
+                      value: item,
+                      child: Text(
+                          '${item.nom} (${item.solde.toStringAsFixed(2)} €)'),
+                    );
+                  }).toList(),
                   onChanged: (ItemDeSelectionTransfert? newValue) {
-                    if (newValue != null && !_isLoading) {
-                      setState(() {
-                        final nouvelleSource = newValue;
-                        _sourceSelectionnee = nouvelleSource;
-
-                        if (_destinationSelectionnee == null || _destinationSelectionnee!.id == nouvelleSource.id) {
-                          try {
-                            _destinationSelectionnee = _tousLesItemsSelectionnables.firstWhere(
-                                  (item) => item.id != nouvelleSource.id,
-                            );
-                          } catch (e) {
-                            _destinationSelectionnee = null;
-                          }
-                        }
-                      });
-                    }
+                    setState(() {
+                      _selectionSource = newValue;
+                    });
                   },
+                  isExpanded: true,
                 ),
                 const SizedBox(height: 10),
-                _buildDropdown(
-                  label: 'À:',
-                  selectedValue: _destinationSelectionnee,
-                  items: _tousLesItemsSelectionnables
-                      .where((item) => item.id != _sourceSelectionnee?.id)
-                      .toList(),
+                // Dropdown Destination
+                DropdownButtonFormField<ItemDeSelectionTransfert>(
+                  decoration: const InputDecoration(
+                      labelText: 'Vers (Destination)'),
+                  value: _selectionDestination,
+                  items: _tousLesItemsSelectionnables.map((item) {
+                    return DropdownMenuItem<ItemDeSelectionTransfert>(
+                      value: item,
+                      child: Text(
+                          '${item.nom} (${item.solde.toStringAsFixed(2)} €)'),
+                    );
+                  }).toList(),
                   onChanged: (ItemDeSelectionTransfert? newValue) {
-                    if (newValue != null && !_isLoading) {
-                      setState(() {
-                        _destinationSelectionnee = newValue;
-                      });
-                    }
+                    setState(() {
+                      _selectionDestination = newValue;
+                    });
                   },
+                  isExpanded: true,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16), // Espace entre les dropdowns et le Numpad
 
-          // 3. Numpad (ne prend plus d'Expanded ici car il est en bas)
-          _buildNumpad(), // Le Numpad est maintenant un enfant direct
+          // --- Section du Montant Affiché ---
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              controller: _montantController,
+              readOnly: true,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              decoration: const InputDecoration(
+                labelText: 'Montant à transférer',
+                suffixText: '€',
+              ),
+            ),
+          ),
+          Expanded(child: Container()),
+          // Espace pour pousser le clavier vers le bas
 
-          // 4. Bouton "Effectuer le virement" en bas
+          // --- Section du Clavier Numérique ---
+          _buildClavierNumerique(),
+
+          // --- Bouton de Transfert ---
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
+                minimumSize: const Size.fromHeight(50), // Hauteur minimale
               ),
-              onPressed: (isCurrentlyInitialLoading || (_isLoading && !isCurrentlyInitialLoading) ||
-                  _sourceSelectionnee == null ||
-                  _destinationSelectionnee == null)
-                  ? null
-                  : _effectuerVirement,
-              child: (_isLoading && !isCurrentlyInitialLoading)
-                  ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 3,
-                  ))
-                  : const Text('Effectuer le virement'),
+              onPressed: _effectuerLeTransfert,
+              child: const Text('Effectuer le Virement'),
             ),
           ),
         ],
@@ -579,113 +485,41 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
     );
   }
 
-  Widget _buildDropdown({
-    required String label,
-    required ItemDeSelectionTransfert? selectedValue,
-    required List<ItemDeSelectionTransfert> items,
-    required ValueChanged<ItemDeSelectionTransfert?> onChanged,
-  }) {
-    final theme = Theme.of(context);
-    bool dropdownDisabled = _isLoading && _tousLesItemsSelectionnables
-        .isEmpty; // Désactiver pendant le chargement initial
-
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<ItemDeSelectionTransfert>(
-          isExpanded: true,
-          value: selectedValue,
-          // Doit être null si non trouvable dans items, ou un des items
-          items: items.map((item) {
-            return DropdownMenuItem<ItemDeSelectionTransfert>(
-              value: item,
-              child: Row(
-                children: [
-                  if (item.couleurAffichage != null)
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                          color: item.couleurAffichage, shape: BoxShape.circle),
-                      margin: const EdgeInsets.only(right: 8),
-                    ),
-                  Expanded(
-                      child: Text(item.nom, overflow: TextOverflow.ellipsis)),
-                  const SizedBox(width: 8),
-                  Text(
-                    currencyFormatter.format(item.solde),
-                    style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color
-                            ?.withOpacity(0.7)),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-          onChanged: dropdownDisabled ? null : onChanged,
-          // Utiliser la variable dropdownDisabled
-          hint: Text(items.isEmpty && !dropdownDisabled
-              ? "Aucune option"
-              : "Sélectionner..."),
-          disabledHint: selectedValue != null
-              ? Text(selectedValue.nom, style: TextStyle(color: Theme
-              .of(context)
-              .disabledColor))
-              : (items.isEmpty
-              ? const Text("Chargement...")
-              : null), // Message pendant chargement initial
+  Widget _buildClavierNumerique() {
+    // Adapter cette partie à votre design de clavier numérique existant
+    // Ceci est un exemple très basique
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 2.0,
+      // Ajuster pour la taille des boutons
+      padding: const EdgeInsets.all(8.0),
+      mainAxisSpacing: 8.0,
+      crossAxisSpacing: 8.0,
+      children: [
+        ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((val) {
+          return ElevatedButton(
+            onPressed: () => _onClavierNumeroAppuye(val),
+            child: Text(val, style: const TextStyle(fontSize: 18)),
+          );
+        }).toList(),
+        ElevatedButton(
+          onPressed: _onClavierEffacerAppuye,
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+          child: const Icon(Icons
+              .backspace_outlined), //Text('Effacer', style: TextStyle(fontSize: 18)),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildNumpad() {
-    final buttons = [
-      '1', '2', '3',
-      '4', '5', '6',
-      '7', '8', '9',
-      '.', '0', '<'
-    ];
-    // Désactiver le numpad pendant le chargement initial
-    bool numpadDisabled = _isLoading && _tousLesItemsSelectionnables.isEmpty;
-
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 1.9,
-      ),
-      itemCount: buttons.length,
-      itemBuilder: (context, index) {
-        final buttonText = buttons[index];
-        return TextButton(
-          style: TextButton.styleFrom(
-            foregroundColor: Theme
-                .of(context)
-                .colorScheme
-                .onSurface,
-            textStyle: Theme
-                .of(context)
-                .textTheme
-                .headlineSmall,
-            shape: const RoundedRectangleBorder(),
-          ),
-          onPressed: numpadDisabled ? null : () { // Utiliser numpadDisabled
-            if (buttonText == '<') {
-              _effacerDernierChiffre();
-            } else {
-              _ajouterChiffre(buttonText);
-            }
-          },
-          child: Text(buttonText),
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _montantController.dispose();
+    super.dispose();
   }
 }
+
+// Assurez-vous que ServiceTransfertArgent.idPretAPlacer est bien défini
+// exemple: static const String idPretAPlacer = "##PRET_A_PLACER##"; dans ServiceTransfertArgent

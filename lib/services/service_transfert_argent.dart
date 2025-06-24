@@ -4,144 +4,120 @@ import '../models/enveloppe_model.dart'; // Assurez-vous que ce chemin est corre
 
 class ServiceTransfertArgent {
   final FirebaseFirestore _firestore;
-  static const String idPretAPlacer = '--PRET-A-PLACER--';
+
+  // Constante pour l'ID "Prêt à placer"
+  // Assurez-vous qu'elle est définie et accessible
+  static const String idPretAPlacer = "##PRET_A_PLACER##";
 
   ServiceTransfertArgent(this._firestore);
 
-  Future<double?> effectuerVirement({
-    required String userId,
-    required double montant,
+  Future<void> transfererArgent({
+    required String utilisateurId,
     required String sourceId,
-    EnveloppeModel? enveloppeSourceDetails, // Fourni si sourceId n'est pas idPretAPlacer
     required String destinationId,
-    EnveloppeModel? enveloppeDestinationDetails, // Fourni si destinationId n'est pas idPretAPlacer
-    required double soldePretAPlacerActuel,
-    String? idCategorieSource, // Juste l'ID de la catégorie source
-    String? idCategorieDestination, // Juste l'ID de la catégorie destination
+    required double montant,
+    required Map<String, dynamic> mapEnveloppes, // Ou Map<String, EnveloppeModel> si vous passez des modèles typés
+    required Map<String, String> mapEnveloppeIdACategorieId,
+    required bool sourceEstPretAPlacer,
+    required bool destinationEstPretAPlacer,
   }) async {
+    print("[ServiceTransfertArgent] Début du transfert.");
+    print("  Utilisateur: $utilisateurId");
+    print("  Source: $sourceId (estPrêtÀPlacer: $sourceEstPretAPlacer)");
+    print("  Destination: $destinationId (estPrêtÀPlacer: $destinationEstPretAPlacer)");
+    print("  Montant: $montant");
+
     if (montant <= 0) {
-      throw TransfertException("Le montant du virement doit être positif.");
+      throw Exception("Le montant du transfert doit être positif.");
     }
     if (sourceId == destinationId) {
-      throw TransfertException(
-          "La source et la destination doivent être différentes.");
+      throw Exception("La source et la destination ne peuvent pas être identiques.");
     }
 
-    // Pré-vérification des soldes (déjà faite dans l'UI, mais bonne pratique)
-    if (sourceId == idPretAPlacer) {
-      if (soldePretAPlacerActuel < montant) {
-        throw TransfertException(
-            "Solde 'Prêt à placer' insuffisant (service).");
-      }
-    } else {
-      if (enveloppeSourceDetails == null) {
-        throw TransfertException(
-            "Détails de l'enveloppe source manquants pour l'ID $sourceId.");
-      }
-      if (enveloppeSourceDetails.montantAlloueActuellement < montant) {
-        throw TransfertException(
-            "Solde de l'enveloppe source '${enveloppeSourceDetails
-                .nom}' insuffisant (service).");
-      }
-    }
+    // Récupérer la référence du document utilisateur
+    final DocumentReference userDocRef = _firestore.collection('users').doc(utilisateurId);
 
-    double nouveauSoldePretAPlacer = soldePretAPlacerActuel;
-    bool pretAPlacerAEteModifie = false;
-
+    // Effectuer les opérations Firestore dans une transaction pour garantir l'atomicité
     await _firestore.runTransaction((transaction) async {
-      // 1. Débiter la source
-      if (sourceId == idPretAPlacer) {
-        // La modification de nouveauSoldePretAPlacer se fait en dehors de la transaction
-        // pour éviter les contentions si plusieurs transactions affectent PAP en même temps.
-        // On marque juste qu'il doit être modifié.
+      // --- Logique pour la SOURCE ---
+      if (sourceEstPretAPlacer) {
+        print("[ServiceTransfertArgent] La source est 'Prêt à placer'.");
+        // Lire la valeur actuelle de soldePretAPlacerGlobal
+        DocumentSnapshot userSnapshot = await transaction.get(userDocRef);
+        if (!userSnapshot.exists || userSnapshot.data() == null) {
+          throw Exception("Document utilisateur source introuvable pendant la transaction.");
+        }
+        num soldeActuelPap = (userSnapshot.data()! as Map<String, dynamic>)['soldePretAPlacerGlobal'] as num? ?? 0.0;
+
+        if (soldeActuelPap < montant) {
+          throw Exception("Solde 'Prêt à placer' insuffisant (actuel: $soldeActuelPap, demandé: $montant).");
+        }
+        transaction.update(userDocRef, {
+          'soldePretAPlacerGlobal': FieldValue.increment(-montant),
+        });
+        print("[ServiceTransfertArgent] 'Prêt à placer' (source) mis à jour. Nouveau solde (théorique): ${soldeActuelPap - montant}");
       } else {
-        // La source est une enveloppe
-        if (enveloppeSourceDetails == null || idCategorieSource == null) {
-          throw TransfertException(
-              "Informations manquantes pour l'enveloppe source ID: $sourceId.");
+        // La source est une enveloppe normale
+        print("[ServiceTransfertArgent] La source est une enveloppe normale : $sourceId.");
+        String? categorieIdSource = mapEnveloppeIdACategorieId[sourceId];
+        if (categorieIdSource == null) {
+          throw Exception("Catégorie ID introuvable pour l'enveloppe source ID: $sourceId");
         }
-        final enveloppeSourceRef = _firestore
-            .collection('users').doc(userId)
-            .collection('categories').doc(
-            idCategorieSource) // Utilise idCategorieSource
-            .collection('enveloppes').doc(sourceId);
+        DocumentReference enveloppeSourceRef = userDocRef
+            .collection('categories')
+            .doc(categorieIdSource)
+            .collection('enveloppes')
+            .doc(sourceId);
 
-        final snapEnveloppeSource = await transaction.get(enveloppeSourceRef);
-        if (!snapEnveloppeSource.exists) {
-          throw TransfertException("Enveloppe source '${enveloppeSourceDetails
-              .nom}' introuvable dans la transaction.");
+        // Lire l'enveloppe source pour vérifier le solde
+        DocumentSnapshot enveloppeSourceSnapshot = await transaction.get(enveloppeSourceRef);
+        if (!enveloppeSourceSnapshot.exists || enveloppeSourceSnapshot.data() == null) {
+          throw Exception("Enveloppe source ID '$sourceId' introuvable.");
         }
-        EnveloppeModel enveloppeSourceTransaction = EnveloppeModel.fromSnapshot(
-            snapEnveloppeSource as DocumentSnapshot<Map<String, dynamic>>);
+        num soldeActuelEnvSource = (enveloppeSourceSnapshot.data()! as Map<String, dynamic>)['montantAlloueActuellement'] as num? ?? 0.0;
 
-        if (enveloppeSourceTransaction.montantAlloueActuellement < montant) {
-          throw TransfertException(
-              "Solde de l'enveloppe source '${enveloppeSourceDetails
-                  .nom}' insuffisant (vérifié dans la transaction).");
+        if (soldeActuelEnvSource < montant) {
+          throw Exception("Solde insuffisant dans l'enveloppe source '${(enveloppeSourceSnapshot.data()! as Map<String, dynamic>)['nom'] ?? sourceId}' (actuel: $soldeActuelEnvSource, demandé: $montant).");
         }
+
         transaction.update(enveloppeSourceRef, {
-          'montantAlloueActuellement': enveloppeSourceTransaction
-              .montantAlloueActuellement - montant,
-          'derniereModification': Timestamp.now(),
+          'montantAlloueActuellement': FieldValue.increment(-montant),
         });
+        print("[ServiceTransfertArgent] Enveloppe source '$sourceId' mise à jour. Nouveau solde (théorique): ${soldeActuelEnvSource - montant}");
       }
 
-      // 2. Créditer la destination
-      if (destinationId == idPretAPlacer) {
-        // Idem que pour la source PAP
+      // --- Logique pour la DESTINATION ---
+      if (destinationEstPretAPlacer) {
+        print("[ServiceTransfertArgent] La destination est 'Prêt à placer'.");
+        // Il n'est pas nécessaire de relire le document utilisateur si la source n'était pas "Prêt à placer"
+        // car FieldValue.increment s'occupe de l'atomicité sur le champ.
+        // Si la source ET la destination sont "Prêt à placer", les deux increments seront appliqués.
+        transaction.update(userDocRef, {
+          'soldePretAPlacerGlobal': FieldValue.increment(montant),
+        });
+        print("[ServiceTransfertArgent] 'Prêt à placer' (destination) mis à jour par +$montant.");
       } else {
-        // La destination est une enveloppe
-        if (enveloppeDestinationDetails == null ||
-            idCategorieDestination == null) {
-          throw TransfertException(
-              "Informations manquantes pour l'enveloppe destination ID: $destinationId.");
+        // La destination est une enveloppe normale
+        print("[ServiceTransfertArgent] La destination est une enveloppe normale : $destinationId.");
+        String? categorieIdDest = mapEnveloppeIdACategorieId[destinationId];
+        if (categorieIdDest == null) {
+          throw Exception("Catégorie ID introuvable pour l'enveloppe destination ID: $destinationId");
         }
-        final enveloppeDestinationRef = _firestore
-            .collection('users').doc(userId)
-            .collection('categories').doc(
-            idCategorieDestination) // Utilise idCategorieDestination
-            .collection('enveloppes').doc(destinationId);
+        DocumentReference enveloppeDestinationRef = userDocRef
+            .collection('categories')
+            .doc(categorieIdDest)
+            .collection('enveloppes')
+            .doc(destinationId);
 
-        final snapEnveloppeDestination = await transaction.get(
-            enveloppeDestinationRef);
-        if (!snapEnveloppeDestination.exists) {
-          throw TransfertException(
-              "Enveloppe destination '${enveloppeDestinationDetails
-                  .nom}' introuvable dans la transaction.");
-        }
-        EnveloppeModel enveloppeDestinationTransaction = EnveloppeModel
-            .fromSnapshot(
-            snapEnveloppeDestination as DocumentSnapshot<Map<String, dynamic>>);
-
+        // Il n'est pas nécessaire de lire l'enveloppe destination avant de mettre à jour
+        // car FieldValue.increment gère cela.
         transaction.update(enveloppeDestinationRef, {
-          'montantAlloueActuellement': enveloppeDestinationTransaction
-              .montantAlloueActuellement + montant,
-          'derniereModification': Timestamp.now(),
+          'montantAlloueActuellement': FieldValue.increment(montant),
         });
+        print("[ServiceTransfertArgent] Enveloppe destination '$destinationId' mise à jour par +$montant.");
       }
-    }); // Fin de la transaction Firestore
-
-    // 3. Appliquer les modifications au solde Prêt à placer après la transaction réussie
-    if (sourceId == idPretAPlacer) {
-      nouveauSoldePretAPlacer -= montant;
-      pretAPlacerAEteModifie = true;
-    }
-    if (destinationId == idPretAPlacer) {
-      nouveauSoldePretAPlacer += montant;
-      pretAPlacerAEteModifie = true;
-    }
-
-    // 4. Si Prêt à placer a été modifié, mettre à jour le solde global de l'utilisateur
-    if (pretAPlacerAEteModifie) {
-      final userDocRef = _firestore.collection('users').doc(userId);
-      await userDocRef.update({
-        'soldePretAPlacerGlobal': nouveauSoldePretAPlacer,
-        // Optionnel: 'derniereModificationVirementPAP': Timestamp.now(),
-      });
-      return nouveauSoldePretAPlacer; // Retourne le nouveau solde PAP
-    }
-
-    return null; // Retourne null si Prêt à placer n'a pas été affecté.
+    });
+    print("[ServiceTransfertArgent] Transaction de transfert terminée avec succès.");
   }
 }
 

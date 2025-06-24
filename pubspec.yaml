@@ -21,7 +21,7 @@ dependencies:
   flutter_colorpicker: ^1.1.0
   intl: ^0.20.2
   month_picker_dialog: ^6.2.3
-
+  google_sign_in: ^7.0.0
 
 dev_dependencies: # DOIT ÊTRE À CE NIVEAU D'INDENTATION
   flutter_test:
