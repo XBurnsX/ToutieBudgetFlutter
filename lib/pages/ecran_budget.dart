@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:month_picker_dialog/month_picker_dialog.dart';
 
 // --- Définitions des Modèles ---
 class CategorieBudgetModel {
@@ -45,11 +46,7 @@ class EcranBudget extends StatefulWidget {
 }
 
 class _EcranBudgetState extends State<EcranBudget> {
-  DateTime _moisAnneeCourant = DateTime(DateTime
-      .now()
-      .year, DateTime
-      .now()
-      .month, 1);
+  DateTime _moisAnneeCourant = DateTime(DateTime.now().year, DateTime.now().month, 1);
 
   double _montantPretAPlacer = 0.0;
   int _nombreTransactionsARevoir = 0;
@@ -63,108 +60,154 @@ class _EcranBudgetState extends State<EcranBudget> {
   }
 
   Future<void> _chargerDonneesBudget() async {
-    // TODO: Implémenter le chargement des données réelles ici
+    // ... votre code existant pour charger les données
+    // (Assurez-vous qu'il est fonctionnel ou qu'il contient des données de test)
     if (!mounted) return;
 
-    // Simulation et réinitialisation des données
+    // Simulation et réinitialisation des données (TEMPORAIRE)
     setState(() {
-      _montantPretAPlacer = 0.00;
-      _nombreTransactionsARevoir = 0;
-      _categoriesDuBudget = []; // Commence avec une liste vide
-      _etatsDepliageCategories = {}; // Réinitialise l'état de dépliage
-
-      // --- TEMPORAIRE: Pour voir la structure avec des données de test minimales ---
-      // Décommentez et adaptez ceci si vous voulez tester l'UI avec quelques données
-      // avant de connecter Firebase.
-      /*
       _montantPretAPlacer = 123.45;
       _nombreTransactionsARevoir = 2;
-      _categoriesDuBudget = [
-        CategorieBudgetModel(
-          id: 'cat_depenses_oblig',
-          nom: 'Dépenses Obligatoires',
-          info: 'Objectifs',
-          enveloppes: [
-            EnveloppeModel(id: 'env_loyer', nom: 'Loyer', montantAlloue: 500.0, montantBudgete: 1000.0, icone: Icons.home_work_outlined, messageSous: "500.00\$ requis"),
-            EnveloppeModel(id: 'env_internet', nom: 'Internet', montantAlloue: 50.0, montantBudgete: 50.0, icone: Icons.wifi),
-          ]
-        ),
-        CategorieBudgetModel(
-          id: 'cat_loisirs',
-          nom: 'Loisirs',
-          info: 'Disponible',
-          enveloppes: [
-            EnveloppeModel(id: 'env_cine', nom: 'Cinéma', montantAlloue: 25.0, montantBudgete: 50.0, icone: Icons.theaters),
-          ]
-        ),
-        CategorieBudgetModel(
-          id: 'cat_vide_test',
-          nom: 'Catégorie Vide',
-          info: 'Aucune enveloppe',
-          enveloppes: []
-        )
-      ];
-      // Initialiser l'état de dépliage (ex: tout déplié pour le test)
-      _etatsDepliageCategories = {
-        for (var categorie in _categoriesDuBudget) categorie.id: true,
-      };
-      */
-      // --- FIN TEMPORAIRE ---
+      _categoriesDuBudget = [ /* ... vos données de test ... */ ];
+      _etatsDepliageCategories = { /* ... vos états de dépliage ... */ };
     });
   }
 
   void _moisPrecedent() {
     setState(() {
-      _moisAnneeCourant =
-          DateTime(_moisAnneeCourant.year, _moisAnneeCourant.month - 1, 1);
+      _moisAnneeCourant = DateTime(_moisAnneeCourant.year, _moisAnneeCourant.month - 1, 1);
     });
     _chargerDonneesBudget();
   }
 
   void _moisSuivant() {
     setState(() {
-      _moisAnneeCourant =
-          DateTime(_moisAnneeCourant.year, _moisAnneeCourant.month + 1, 1);
+      _moisAnneeCourant = DateTime(_moisAnneeCourant.year, _moisAnneeCourant.month + 1, 1);
     });
     _chargerDonneesBudget();
   }
 
-  void _showDatePickerDialog() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _moisAnneeCourant,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-      locale: const Locale('fr', 'FR'),
-    );
-    if (picked != null && (picked.year != _moisAnneeCourant.year ||
-        picked.month != _moisAnneeCourant.month)) {
+  // --- 1. PLACEZ LA MÉTHODE _handleDateTap ICI ---
+  void _handleDateTap() async {
+    final DateTime? picked = await _showCustomMonthYearPicker(context);
+
+    if (picked != null && (picked.year != _moisAnneeCourant.year || picked.month != _moisAnneeCourant.month)) {
       setState(() {
         _moisAnneeCourant = DateTime(picked.year, picked.month, 1);
       });
-      _chargerDonneesBudget();
+      _chargerDonneesBudget(); // Recharge les données pour le nouveau mois/année
     }
   }
+
+  // --- 2. PLACEZ LA MÉTHODE _showCustomMonthYearPicker ICI ---
+  Future<DateTime?> _showCustomMonthYearPicker(BuildContext context) async {
+    DateTime tempPickedDate = _moisAnneeCourant;
+
+    return showDialog<DateTime>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (stfContext, stfSetState) {
+            // Initialisation de la liste des noms de mois DANS le builder pour
+            // qu'elle se mette à jour si l'année change.
+            List<String> moisNoms = List.generate(12, (index) {
+              // Utilise la locale 'fr_FR' pour obtenir les noms des mois en français
+              // Assurez-vous que initializeDateFormatting('fr_FR', null); a été appelé dans main().
+              return DateFormat.MMM('fr_FR').format(DateTime(tempPickedDate.year, index + 1));
+            });
+
+
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E), // Couleur de fond du dialogue
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left, color: Colors.white),
+                    onPressed: () {
+                      stfSetState(() { // Mettre à jour l'état du dialogue
+                        tempPickedDate = DateTime(tempPickedDate.year - 1, tempPickedDate.month);
+                      });
+                    },
+                  ),
+                  Text(
+                    DateFormat.y('fr_FR').format(tempPickedDate), // Affiche l'année
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right, color: Colors.white),
+                    onPressed: () {
+                      stfSetState(() { // Mettre à jour l'état du dialogue
+                        tempPickedDate = DateTime(tempPickedDate.year + 1, tempPickedDate.month);
+                      });
+                    },
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: moisNoms.length, // Toujours 12 mois
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4, // 4 mois par ligne pour un look plus compact
+                    childAspectRatio: 2,   // Ratio largeur/hauteur des boutons de mois
+                    mainAxisSpacing: 8,    // Espace vertical entre les boutons
+                    crossAxisSpacing: 8,   // Espace horizontal entre les boutons
+                  ),
+                  itemBuilder: (BuildContext itemContext, int index) {
+                    final moisDateTime = DateTime(tempPickedDate.year, index + 1);
+                    // Vérifie si ce mois est le mois actuellement sélectionné ET affiché sur l'écran principal
+                    bool isCurrentlySelectedOnScreen = moisDateTime.month == _moisAnneeCourant.month && moisDateTime.year == _moisAnneeCourant.year;
+                    // Vérifie si ce mois est celui qui est "hovered" ou "pré-sélectionné" dans le picker
+                    // Pour l'instant, pas de notion de "hover" distincte, on se base sur le mois de tempPickedDate
+                    // bool isMonthInPickerSelected = moisDateTime.month == tempPickedDate.month;
+
+
+                    return ElevatedButton( // Utiliser ElevatedButton pour un style plus visible
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isCurrentlySelectedOnScreen
+                            ? Theme.of(context).primaryColor // Couleur primaire si c'est le mois actif à l'écran
+                            : const Color(0xFF333333), // Couleur de fond pour les autres mois
+                        foregroundColor: Colors.white, // Couleur du texte
+                        padding: EdgeInsets.zero, // Pas de padding interne pour que le texte soit centré
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                          moisNoms[index], // Le nom du mois ex: 'janv.'
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: isCurrentlySelectedOnScreen ? FontWeight.bold : FontWeight.normal,
+                          )
+                      ),
+                      onPressed: () {
+                        // Pop avec la date construite à partir de l'année du picker et du mois cliqué
+                        Navigator.pop(dialogContext, DateTime(tempPickedDate.year, index + 1, 1));
+                      },
+                    );
+                  },
+                ),
+              ),
+              // On ne met pas de 'actions' pour ne pas avoir de boutons OK/Annuler
+            );
+          },
+        );
+      },
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      // ... votre code de Scaffold ...
       appBar: AppBar(
-        backgroundColor: const Color(0xFF121212),
-        elevation: 0,
-        // leading: IconButton( // <--- SUPPRIMER OU COMMENTER CETTE LIGNE
-        //   icon: const Icon(Icons.more_horiz, color: Colors.white),
-        //   onPressed: () {
-        //     ScaffoldMessenger.of(context).showSnackBar(
-        //       const SnackBar(content: Text('Menu More Horiz (leading - TODO)')),
-        //     );
-        //   },
-        //   tooltip: 'Plus d\'options (leading)',
-        // ),
-        titleSpacing: 0,
+        // ... votre code d'AppBar ...
         title: _buildCustomAppBarTitle(theme),
         actions: _buildAppBarActions(theme),
       ),
@@ -175,12 +218,11 @@ class _EcranBudgetState extends State<EcranBudget> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: <Widget>[
-            if (_montantPretAPlacer != 0) // S'affiche si positif OU négatif
+            if (_montantPretAPlacer != 0)
               _buildReadyToAssignBanner(theme),
-            // ^^^^^ --- FIN DE LA MODIFICATION --- ^^^^^
             _buildReviewTransactionsBanner(theme),
             _buildCategoriesSection(theme),
-            const SizedBox(height: 80), // !!! ATTENTION !!! Hauteur du bandeau pret a placer
+            const SizedBox(height: 80),
           ],
         ),
       ),
@@ -190,22 +232,18 @@ class _EcranBudgetState extends State<EcranBudget> {
   Widget _buildCustomAppBarTitle(ThemeData theme) {
     return Container(
       width: double.infinity,
-      // Si vous voulez qu'il touche le bord de l'écran (ou le leading s'il y en avait un),
-      // mettez ce padding à zéro ou à une petite valeur.
-      padding: const EdgeInsets.symmetric(horizontal: 25.0), // Était 16.0
+      padding: const EdgeInsets.symmetric(horizontal: 25.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.start, // <--- CHANGEZ CECI DE .center À .start
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          // Le Flexible n'est peut-être plus aussi crucial si vous alignez au début,
-          // mais ne nuit pas. Vous pourriez aussi l'enlever et laisser le GestureDetector directement.
           Flexible(
             child: GestureDetector(
-              onTap: _showDatePickerDialog,
+              // --- 3. MODIFIEZ L'APPEL onTap ICI ---
+              onTap: _handleDateTap, // Appelle la nouvelle méthode de gestion
               child: Container(
-                color: Colors.transparent,
-                padding: EdgeInsets.zero, // Padding autour du texte du mois (si vous le voulez collé)
+                color: Colors.transparent, // Pour une meilleure zone de clic
+                padding: EdgeInsets.zero, // Ou un léger padding si besoin
                 child: Row(
-                  // mainAxisAlignment: MainAxisAlignment.center, // N'est plus nécessaire si le parent est .start
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
@@ -423,7 +461,7 @@ class _EcranBudgetState extends State<EcranBudget> {
                   Icons.category_outlined, color: Colors.white38, size: 48),
               const SizedBox(height: 16),
               Text(
-                "Aucune catégorie budgétaire pour ce mois.",
+                "Aucune catégorie budgétaire.",
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium?.copyWith(
                     color: Colors.white70, fontSize: 16),
