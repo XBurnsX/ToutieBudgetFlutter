@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:toutie_budget/models/categorie_budget_model.dart';
 import 'package:toutie_budget/models/compte_model.dart';
+import '../pages/test_enveloppe_screen.dart';
 // import 'package:intl/intl.dart'; // Décommentez si vous utilisez currencyFormatter
 
 class BudgetCategoriesList extends StatefulWidget {
@@ -83,11 +84,19 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
       return _buildEmptyState(
         theme: theme,
         icon: Icons.add_box_outlined,
-        // Icône différente pour suggérer l'ajout
         title: 'Aucune catégorie budgétaire',
         subtitle: 'Ajoutez des catégories pour commencer à répartir vos fonds.',
-        buttonLabel: 'Ajouter une catégorie',
-        onButtonPressed: widget.onCreerCategorieDemandee,
+        buttonLabel: 'VOIR VISUEL ENVELOPPES', // Optionnel: changez le label
+        onButtonPressed: () {
+          // ------ MODIFICATION ICI ------
+          Navigator.push(
+            context,
+            // Pointe maintenant vers TestEnveloppeVisuelScreen
+            // qui se trouve dans votre fichier test_enveloppe_screen.dart
+            MaterialPageRoute(builder: (context) => const TestEnveloppeScreen()),
+          );
+        },
+        // onButtonPressed: widget.onCreerCategorieDemandee, // Ancienne action
       );
     }
 
