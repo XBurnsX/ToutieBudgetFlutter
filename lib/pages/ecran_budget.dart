@@ -7,6 +7,8 @@ import 'package:toutie_budget/models/categorie_budget_model.dart'; // VÉRIFIEZ 
 import 'package:toutie_budget/widgets/transactions_review_banner.dart';
 import 'package:toutie_budget/widgets/budget_categories_list.dart';
 
+import 'gestion_categories_enveloppes_screen.dart';
+
 class EcranBudget extends StatefulWidget {
   const EcranBudget({super.key});
 
@@ -353,15 +355,28 @@ class _EcranBudgetState extends State<EcranBudget> {
 
   List<Widget> _buildAppBarActions(ThemeData theme) {
     return [
-      IconButton(icon: const Icon(Icons.category_outlined, color: Colors.white),
+      IconButton(
+        icon: const Icon(Icons.category_outlined, color: Colors.white),
+        tooltip: 'Gérer les catégories et enveloppes', // Ajout d'un tooltip
+        onPressed: () {
+          // Assurez-vous que le `context` est accessible ici.
+          // Si _buildAppBarActions est une méthode d'une classe State, `context` est une propriété.
+          Navigator.push(
+            context, // Utilisez le context de votre widget State
+            MaterialPageRoute(builder: (context) => const GestionCategoriesEnveloppesScreen()),
+          );
+          // Ou si vous utilisez des routes nommées:
+          // Navigator.pushNamed(context, GestionCategoriesEnveloppesScreen.routeName);
+        },
+      ),
+      IconButton(
+          icon: const Icon(Icons.menu, color: Colors.white),
           onPressed: () {
-            /* TODO: Naviguer vers la gestion des catégories/modèles */
+            /* TODO: Ouvrir un drawer ou menu principal */
+            Scaffold.of(context).openEndDrawer(); // Exemple si vous avez un endDrawer
           }),
       IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white), onPressed: () {
-        /* TODO: Ouvrir un drawer ou menu principal */
-      }),
-      IconButton(icon: const Icon(Icons.more_vert, color: Colors.white),
+          icon: const Icon(Icons.more_vert, color: Colors.white),
           onPressed: () {
             /* TODO: Options supplémentaires */
           }),

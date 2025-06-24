@@ -1,28 +1,111 @@
-// lib/widgets/enveloppe_card.dart
-
+import 'package:cloud_firestore/cloud_firestore.dart'; // NÉCESSAIRE pour Timestamp
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-// Enum et Classe EnveloppeTestData (inchangés)
+// Enum TypeObjectif
 enum TypeObjectif { mensuel, dateFixe, aucun }
 
+// Helper pour convertir TypeObjectif en String et vice-versa (important pour Firestore)
+String typeObjectifToString(TypeObjectif type) {
+  switch (type) {
+    case TypeObjectif.mensuel:
+      return 'mensuel';
+    case TypeObjectif.dateFixe:
+      return 'dateFixe';
+    case TypeObjectif.aucun:
+    default:
+      return 'aucun';
+  }
+}
+
+TypeObjectif stringToTypeObjectif(String? typeStr) {
+  switch (typeStr) {
+    case 'mensuel':
+      return TypeObjectif.mensuel;
+    case 'dateFixe':
+      return TypeObjectif.dateFixe;
+    case 'aucun':
+    default:
+      return TypeObjectif.aucun;
+  }
+}
+
 class EnveloppeTestData {
+  final String id;
   final String nom;
-  final IconData? icone;
+  final int? iconeCodePoint;
   final double soldeActuel;
   final double montantAlloue;
   final TypeObjectif typeObjectif;
   final double? montantCible;
   final DateTime? dateCible;
-  final Color couleurTheme;
-  final Color couleurSoldeCompte;
+  final int couleurThemeValue;
+  final int couleurSoldeCompteValue;
+  final int ordre;
+
+  // Valeurs par défaut constantes pour les couleurs
+  static const int _defaultCouleurThemeValue = 0xFF2196F3; // Équivalent à Colors.blue.shade500.value
+  static const int _defaultCouleurSoldeCompteValue = 0xFF9E9E9E; // Équivalent à Colors.grey.shade500.value
 
   EnveloppeTestData({
-    required this.nom, this.icone, required this.soldeActuel, required this.montantAlloue,
-    this.typeObjectif = TypeObjectif.aucun, this.montantCible, this.dateCible,
-    this.couleurTheme = Colors.blue,
-    required this.couleurSoldeCompte,
+    required this.id,
+    required this.nom,
+    this.iconeCodePoint,
+    required this.soldeActuel,
+    required this.montantAlloue,
+    this.typeObjectif = TypeObjectif.aucun,
+    this.montantCible,
+    this.dateCible,
+    this.couleurThemeValue = _defaultCouleurThemeValue,
+    required this.couleurSoldeCompteValue,
+    this.ordre = 0,
   });
+
+  // Propriétés calculées pour récupérer les objets Color et IconData originaux
+  IconData? get icone =>
+      iconeCodePoint != null ? IconData(
+          iconeCodePoint!, fontFamily: 'MaterialIcons') : null;
+
+  Color get couleurTheme => Color(couleurThemeValue);
+
+  Color get couleurSoldeCompte => Color(couleurSoldeCompteValue);
+
+  // Méthode pour convertir un objet EnveloppeTestData en Map pour Firestore
+  Map<String, dynamic> toMap() {
+    return {
+      'nom': nom,
+      'iconeCodePoint': iconeCodePoint,
+      'soldeActuel': soldeActuel,
+      'montantAlloue': montantAlloue,
+      'typeObjectif': typeObjectifToString(typeObjectif),
+      'montantCible': montantCible,
+      'dateCible': dateCible != null ? Timestamp.fromDate(dateCible!) : null,
+      'couleurThemeValue': couleurThemeValue,
+      'couleurSoldeCompteValue': couleurSoldeCompteValue,
+      'ordre': ordre,
+    };
+  }
+
+  // Méthode factory pour créer un objet EnveloppeTestData depuis un DocumentSnapshot de Firestore
+  factory EnveloppeTestData.fromFirestore(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
+    Map<String, dynamic> data = doc.data()!;
+    return EnveloppeTestData(
+      id: doc.id,
+      nom: data['nom'] ?? '',
+      iconeCodePoint: data['iconeCodePoint'] as int?,
+      soldeActuel: (data['soldeActuel'] ?? 0.0).toDouble(),
+      montantAlloue: (data['montantAlloue'] ?? 0.0).toDouble(),
+      typeObjectif: stringToTypeObjectif(data['typeObjectif'] as String?),
+      montantCible: (data['montantCible'] as num?)?.toDouble(),
+      dateCible: (data['dateCible'] as Timestamp?)?.toDate(),
+      couleurThemeValue: data['couleurThemeValue'] as int? ??
+          _defaultCouleurThemeValue,
+      couleurSoldeCompteValue: data['couleurSoldeCompteValue'] as int? ??
+          _defaultCouleurSoldeCompteValue,
+      ordre: data['ordre'] ?? 0,
+    );
+  }
 }
 
 class EnveloppeCard extends StatelessWidget {
@@ -36,6 +119,7 @@ class EnveloppeCard extends StatelessWidget {
     final currencyFormatter = NumberFormat.currency(
         locale: 'fr_CA', symbol: '\$');
 
+    // Détermination des couleurs pour la bulle de solde
     Color couleurFondBulleSolde;
     Color couleurTexteBulleSolde;
 
@@ -50,6 +134,7 @@ class EnveloppeCard extends StatelessWidget {
       couleurTexteBulleSolde = enveloppe.couleurSoldeCompte;
     }
 
+    // Détermination de la couleur de la barre latérale
     Color couleurBarreLaterale;
     if (enveloppe.soldeActuel < 0) {
       couleurBarreLaterale = Colors.red.shade700;
@@ -84,18 +169,17 @@ class EnveloppeCard extends StatelessWidget {
           couleurBarreLaterale = Colors.yellow.shade700;
         } else if (enveloppe.soldeActuel > 0) {
           couleurBarreLaterale = Colors.green.shade500;
-        }
-        else {
+        } else {
           couleurBarreLaterale = Colors.grey.shade400;
         }
       } else if (enveloppe.soldeActuel > 0) {
         couleurBarreLaterale = Colors.green.shade500;
-      }
-      else {
+      } else {
         couleurBarreLaterale = Colors.grey.shade400;
       }
     }
 
+    // Calculs pour la barre de progression et messages
     double progressionValue = 0;
     String messageObjectifText = '';
     String messageSousBarreText = '';
@@ -106,7 +190,8 @@ class EnveloppeCard extends StatelessWidget {
           enveloppe.montantCible != null &&
           enveloppe.montantCible! > 0) {
         if (enveloppe.dateCible != null) {
-          messageObjectifText = '${currencyFormatter.format(
+          messageObjectifText =
+          '${currencyFormatter.format(
               enveloppe.montantCible)} d\'ici le ${DateFormat('d', 'fr_CA')
               .format(enveloppe.dateCible!)}';
         } else {
@@ -115,7 +200,8 @@ class EnveloppeCard extends StatelessWidget {
         }
         progressionValue =
             (enveloppe.montantAlloue / enveloppe.montantCible!).clamp(0.0, 1.0);
-        messageSousBarreText = '${currencyFormatter.format(
+        messageSousBarreText =
+        '${currencyFormatter.format(
             enveloppe.montantAlloue)} / ${currencyFormatter.format(
             enveloppe.montantCible)} alloué(s)';
         afficherBarreProgressionPrincipale = true;
@@ -123,7 +209,8 @@ class EnveloppeCard extends StatelessWidget {
           enveloppe.montantCible != null &&
           enveloppe.montantCible! > 0) {
         if (enveloppe.dateCible != null) {
-          messageObjectifText = '${currencyFormatter.format(
+          messageObjectifText =
+          '${currencyFormatter.format(
               enveloppe.montantCible)} d\'ici le ${DateFormat('d', 'fr_CA')
               .format(enveloppe.dateCible!)}';
         } else {
@@ -132,35 +219,40 @@ class EnveloppeCard extends StatelessWidget {
         }
         progressionValue =
             (enveloppe.soldeActuel / enveloppe.montantCible!).clamp(0.0, 1.0);
-        messageSousBarreText = '${currencyFormatter.format(
+        messageSousBarreText =
+        '${currencyFormatter.format(
             enveloppe.soldeActuel)} / ${currencyFormatter.format(
             enveloppe.montantCible)} épargné(s)';
         afficherBarreProgressionPrincipale = true;
       } else if (enveloppe.typeObjectif == TypeObjectif.aucun &&
-          enveloppe.montantAlloue > 0 && enveloppe.soldeActuel >= 0) {
+          enveloppe.montantAlloue > 0 &&
+          enveloppe.soldeActuel >= 0) {
         progressionValue = ((enveloppe.montantAlloue - enveloppe.soldeActuel) /
             enveloppe.montantAlloue).clamp(0.0, 1.0);
-        messageSousBarreText = '${currencyFormatter.format(
-            enveloppe.montantAlloue -
-                enveloppe.soldeActuel)} dépensé(s) / ${currencyFormatter.format(
+        messageSousBarreText =
+        '${currencyFormatter.format(enveloppe.montantAlloue -
+            enveloppe.soldeActuel)} dépensé(s) / ${currencyFormatter.format(
             enveloppe.montantAlloue)}';
         afficherBarreProgressionPrincipale = enveloppe.montantAlloue > 0;
       }
     }
-    if (messageSousBarreText.isEmpty && enveloppe.soldeActuel != 0 &&
-        enveloppe.typeObjectif == TypeObjectif.aucun) {
+
+    if (messageSousBarreText.isEmpty &&
+        enveloppe.soldeActuel != 0 &&
+        enveloppe.typeObjectif == TypeObjectif.aucun &&
+        !(enveloppe.montantAlloue > 0 && enveloppe.soldeActuel >= 0)) {
       messageSousBarreText =
       'Report: ${currencyFormatter.format(enveloppe.soldeActuel)}';
     }
 
     Color couleurProgression = couleurBarreLaterale;
-    if (couleurBarreLaterale == Colors.grey.shade400) {
+    if (couleurBarreLaterale == Colors.grey.shade400 &&
+        afficherBarreProgressionPrincipale) {
       couleurProgression = Colors.grey.shade600;
     }
 
-    // AJUSTER les paddings verticaux pour compacter
-    const double paddingVerticalInterneCompact = 1.0; // Réduire de 2.0 à 1.0 ou 1.5
-    const double paddingVerticalSousBarreCompact = 0.5; // Réduire de 1.0 à 0.5 ou garder 1.0
+    const double paddingVerticalInterneCompact = 1.0;
+    const double paddingVerticalSousBarreCompact = 0.5;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
@@ -173,18 +265,17 @@ class EnveloppeCard extends StatelessWidget {
             Expanded(
               child: InkWell(
                 onTap: () {
-                  print('Carte ${enveloppe.nom} cliquée');
+                  print('Carte ${enveloppe.nom} cliquée (ID: ${enveloppe.id})');
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8.0, vertical: 10.0),
-                  // Garder le padding global
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Row( // Titre et solde
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           if (enveloppe.icone != null)
@@ -202,7 +293,8 @@ class EnveloppeCard extends StatelessWidget {
                                 letterSpacing: 0.1,
                                 color: theme.colorScheme.onSurface,
                               ),
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -224,17 +316,11 @@ class EnveloppeCard extends StatelessWidget {
                           ),
                         ],
                       ),
-
-                      // Espacement après le titre/solde, avant les détails de l'objectif (si présents)
-                      // On peut légèrement le réduire aussi si messageObjectifText est présent
                       if (messageObjectifText.isNotEmpty ||
                           afficherBarreProgressionPrincipale)
                         const SizedBox(height: 2.0),
-                      // était implicite ou via padding top du premier élément
-
                       if (messageObjectifText.isNotEmpty)
                         Padding(
-                          // MODIFIÉ: padding vertical réduit
                           padding: const EdgeInsets.only(
                               top: paddingVerticalInterneCompact,
                               bottom: paddingVerticalInterneCompact),
@@ -244,12 +330,12 @@ class EnveloppeCard extends StatelessWidget {
                                 color: theme.colorScheme.onSurfaceVariant
                                     .withOpacity(0.9),
                                 fontStyle: FontStyle.italic),
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       if (afficherBarreProgressionPrincipale)
                         Padding(
-                          // MODIFIÉ: padding vertical réduit
                           padding: const EdgeInsets.only(
                               top: paddingVerticalInterneCompact,
                               bottom: paddingVerticalInterneCompact),
@@ -275,7 +361,6 @@ class EnveloppeCard extends StatelessWidget {
                         ),
                       if (messageSousBarreText.isNotEmpty)
                         Padding(
-                          // MODIFIÉ: padding top réduit
                           padding: const EdgeInsets.only(
                               top: paddingVerticalSousBarreCompact),
                           child: Text(
@@ -283,7 +368,8 @@ class EnveloppeCard extends StatelessWidget {
                             style: theme.textTheme.labelSmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant
                                     .withOpacity(0.7)),
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                     ],
