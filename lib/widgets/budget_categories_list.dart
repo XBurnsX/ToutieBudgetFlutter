@@ -1,28 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:toutie_budget/models/categorie_budget_model.dart'; // Contient List<EnveloppePourAffichageBudget>
+import 'package:intl/intl.dart';
+import 'package:toutie_budget/models/categorie_budget_model.dart';
 import 'package:toutie_budget/models/compte_model.dart';
-
-// Importez EnveloppePourAffichageBudget depuis ecran_budget.dart ou son propre fichier modèle
 import 'package:toutie_budget/pages/ecran_budget.dart'
     show EnveloppePourAffichageBudget;
 import 'package:toutie_budget/pages/gestion_categories_enveloppes_screen.dart'
     show GestionCategoriesEnveloppesScreen;
-
-// import 'package:intl/intl.dart'; // Décommentez si vous utilisez currencyFormatter
 
 class BudgetCategoriesList extends StatefulWidget {
   final List<CategorieBudgetModel> categories;
   final List<Compte> comptesActuels;
   final bool isLoading;
   final VoidCallback? onCreerCategorieDemandee;
-  final DateTime moisAnneeCourant; // Ajoutez ceci
+  final DateTime moisAnneeCourant;
 
   const BudgetCategoriesList({
     super.key,
     required this.categories,
     required this.comptesActuels,
     required this.isLoading,
-    required this.moisAnneeCourant, // Et ici
+    required this.moisAnneeCourant,
     this.onCreerCategorieDemandee,
   });
 
@@ -31,59 +28,37 @@ class BudgetCategoriesList extends StatefulWidget {
 }
 
 class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
-  Map<String, bool> _etatsDepliageCategories = {};
-
-  // final currencyFormatter = NumberFormat.currency(locale: 'fr_CA', symbol: '\$');
+  // Map<String, bool> _etatsDepliageCategories = {}; // PLUS NÉCESSAIRE
+  final currencyFormatter = NumberFormat.currency(
+      locale: 'fr_CA', symbol: '\$');
 
   @override
   void initState() {
     super.initState();
-    _initialiserEtatsDepliage();
+    // _initialiserEtatsDepliage(); // PLUS NÉCESSAIRE
   }
 
   @override
   void didUpdateWidget(covariant BudgetCategoriesList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.categories.length != oldWidget.categories.length ||
-        !widget.categories.every((cat) =>
-            oldWidget.categories.any((oldCat) => oldCat.id == cat.id)) ||
-        widget.moisAnneeCourant != oldWidget
-            .moisAnneeCourant // Si le mois change, on pourrait vouloir réinitialiser l'état de dépliage
-    ) {
-      _initialiserEtatsDepliage();
-    }
+    // La logique de _initialiserEtatsDepliage n'est plus nécessaire si on ne déplie/replie plus
+    // if (widget.categories.length != oldWidget.categories.length ||
+    //     !widget.categories.every((cat) =>
+    //         oldWidget.categories.any((oldCat) => oldCat.id == cat.id)) ||
+    //     widget.moisAnneeCourant != oldWidget.moisAnneeCourant) {
+    //   _initialiserEtatsDepliage();
+    // }
   }
 
-  void _initialiserEtatsDepliage() {
-    // Si le mois change, on force la réinitialisation à 'fermé'
-    // Sinon, on conserve l'état existant si possible.
-    // Vous pouvez ajuster cette logique selon le comportement souhaité.
-    bool forcerFermeture = _etatsDepliageCategories.isNotEmpty &&
-        (widget.categories.isNotEmpty &&
-            !_etatsDepliageCategories.containsKey(widget.categories.first
-                .id)); // Heuristique simple pour détecter un changement majeur de données
-    // ou si le mois a changé (déjà géré dans didUpdateWidget)
-
-    if (forcerFermeture) {
-      _etatsDepliageCategories = {
-        for (var categorie in widget.categories)
-          categorie.id: false,
-        // Tout fermer si les catégories changent drastiquement ou le mois
-      };
-    } else {
-      _etatsDepliageCategories = {
-        for (var categorie in widget.categories)
-          categorie.id: _etatsDepliageCategories[categorie.id] ?? false,
-      };
-    }
-  }
+  // void _initialiserEtatsDepliage() { ... } // MÉTHODE PLUS NÉCESSAIRE
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    bool aucunCompteAvecSoldeInitialement = widget.comptesActuels
-        .where((c) => c.soldeActuel != 0)
-        .isEmpty;
+    bool aucunCompteAvecSoldeInitialement =
+        widget.comptesActuels
+            .where((c) => c.soldeActuel != 0)
+            .isEmpty;
 
     if (widget.isLoading) {
       return const Padding(
@@ -97,7 +72,8 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
         theme: theme,
         icon: Icons.category_outlined,
         title: 'Commencez par créer des catégories',
-        subtitle: 'Organisez votre budget en allouant des fonds à différentes catégories et enveloppes.',
+        subtitle:
+        'Organisez votre budget en allouant des fonds à différentes catégories et enveloppes.',
         buttonLabel: 'Créer une catégorie',
         onButtonPressed: widget.onCreerCategorieDemandee,
       );
@@ -111,11 +87,12 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
         subtitle: 'Ajoutez des catégories pour commencer à répartir vos fonds.',
         buttonLabel: 'CRÉEZ VOTRE PREMIÈRE CATÉGORIE',
         onButtonPressed: widget.onCreerCategorieDemandee ??
-                () { // Utilisez le callback s'il est fourni
+                () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (
-                    context) => const GestionCategoriesEnveloppesScreen()),
+                MaterialPageRoute(
+                    builder: (context) =>
+                    const GestionCategoriesEnveloppesScreen()),
               );
             },
       );
@@ -136,6 +113,7 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
     required String buttonLabel,
     VoidCallback? onButtonPressed,
   }) {
+    // ... (aucun changement ici)
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
       child: Center(
@@ -147,15 +125,15 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                  color: Colors.grey[700]),
+              style: theme.textTheme.headlineSmall
+                  ?.copyWith(color: Colors.grey[700]),
             ),
             const SizedBox(height: 8),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600]),
+              style:
+              theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -164,14 +142,15 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: theme.colorScheme.onPrimary,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 12),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 textStyle: theme.textTheme.labelLarge,
               ),
-              onPressed: onButtonPressed ?? () {
-                print(
-                    '$buttonLabel cliqué (action par défaut dans BudgetCategoriesList)');
-              },
+              onPressed: onButtonPressed ??
+                      () {
+                    print(
+                        '$buttonLabel cliqué (action par défaut dans BudgetCategoriesList)');
+                  },
             ),
           ],
         ),
@@ -179,142 +158,106 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
     );
   }
 
+  // MODIFICATIONS APPLIQUÉES ICI
   Widget _buildCategorieItem(ThemeData theme, CategorieBudgetModel categorie) {
-    bool estDeplie = _etatsDepliageCategories[categorie.id] ?? false;
-    double progression = 0;
-    if (categorie.alloueTotal > 0) {
-      progression = categorie.depenseTotal / categorie.alloueTotal;
-    }
-    progression = progression.clamp(0.0, 1.0);
+    // bool estDeplie = _etatsDepliageCategories[categorie.id] ?? false; // PLUS NÉCESSAIRE
 
-    Color couleurDeBase = categorie.couleur;
-    Color couleurBarreEtTexteDisponible = couleurDeBase;
+    Color couleurTexteDisponible = categorie.disponibleTotal >= 0
+        ? (theme.brightness == Brightness.dark
+        ? Colors.greenAccent[100]!
+        : Colors.green[700]!)
+        : (theme.brightness == Brightness.dark ? Colors.redAccent[100]! : Colors
+        .red[700]!);
 
-    if (categorie.disponibleTotal < 0) {
-      couleurBarreEtTexteDisponible = Colors.red[400]!;
-    } else if (progression == 1.0) {
-      couleurBarreEtTexteDisponible = HSLColor.fromColor(couleurDeBase)
-          .withSaturation(0.7)
-          .withLightness(HSLColor
-          .fromColor(couleurDeBase)
-          .lightness * 0.9)
-          .toColor();
-    } else if (progression > 0.85) {
-      couleurBarreEtTexteDisponible = HSLColor.fromColor(couleurDeBase)
-          .withLightness((HSLColor
-          .fromColor(couleurDeBase)
-          .lightness * 0.85).clamp(0.0, 1.0))
-          .toColor();
-    }
-
-    return Column(
+    return Column( // Garde le Column pour le Divider
       children: [
-        InkWell(
-          onTap: () {
-            setState(() {
-              _etatsDepliageCategories[categorie.id] = !estDeplie;
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16.0, vertical: 12.0),
-            color: Colors.grey[850],
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        categorie.nom.toUpperCase(),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      '${categorie.disponibleTotal.toStringAsFixed(2)} \$',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                          color: couleurBarreEtTexteDisponible,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    Icon(
-                      estDeplie ? Icons.keyboard_arrow_down : Icons
-                          .keyboard_arrow_right,
-                      color: Colors.white70,
-                    ),
-                  ],
+        Container( // Ce Container est l'en-tête de la catégorie
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          color: Colors.black,
+          child: Row( // L'en-tête est maintenant une simple Row
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  categorie.nom.toUpperCase(),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (categorie.info.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
                   Text(
-                    categorie.info,
+                    "Disponible",
                     style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white70),
+                      color: Colors.white70,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    currencyFormatter.format(categorie.disponibleTotal),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: couleurTexteDisponible,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: progression,
-                  backgroundColor: couleurDeBase.withOpacity(0.25),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      couleurBarreEtTexteDisponible),
-                  minHeight: 6,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ],
-            ),
+              ),
+              // L'icône de flèche pour déplier/replier est supprimée
+              // const SizedBox(width: 8),
+              // Icon( ... ),
+            ],
           ),
         ),
-        if (estDeplie)
-          Container(
-            color: Colors.grey[900],
-            child: Column(
-              // categorie.enveloppes est maintenant List<EnveloppePourAffichageBudget>
-              children: categorie.enveloppes.map((enveloppeAffichee) {
-                return _buildEnveloppeItem(
-                    theme, enveloppeAffichee, couleurDeBase);
-              }).toList(),
-            ),
+        // Les enveloppes sont maintenant toujours affichées
+        Container(
+          color: Colors.grey[900], // Fond pour la section des enveloppes
+          child: Column(
+            children: categorie.enveloppes.map((enveloppeAffichee) {
+              return _buildEnveloppeItem(
+                  theme, enveloppeAffichee, enveloppeAffichee.couleur);
+            }).toList(),
           ),
+        ),
         Divider(height: 1, color: Colors.grey[700]),
       ],
     );
   }
 
-  // MODIFIÉ: Le paramètre `enveloppe` est maintenant de type EnveloppePourAffichageBudget
   Widget _buildEnveloppeItem(ThemeData theme,
       EnveloppePourAffichageBudget enveloppe,
-      Color couleurCategorieParente) {
+      Color couleurDeBasePourEnveloppe) {
+    // ... (aucun changement dans _buildEnveloppeItem)
     double progression = 0;
-    if (enveloppe.montantAlloue >
-        0) { // Utilise enveloppe.montantAlloue de EnveloppePourAffichageBudget
-      progression = (enveloppe.depense /
-          enveloppe.montantAlloue); // Utilise enveloppe.depense
+    if (enveloppe.montantAlloue > 0) {
+      progression = (enveloppe.depense / enveloppe.montantAlloue);
     }
     progression = progression.clamp(0.0, 1.0);
 
-    // La couleur de l'enveloppe vient directement de EnveloppePourAffichageBudget
-    Color couleurDeBaseEnveloppe = enveloppe.couleur;
-    Color couleurBarreEtTexteDisponibleEnveloppe = couleurDeBaseEnveloppe;
+    Color couleurBarreEtTexteDisponibleEnveloppe = couleurDeBasePourEnveloppe;
 
-    // Utilise enveloppe.disponible de EnveloppePourAffichageBudget
     if (enveloppe.disponible < 0) {
-      couleurBarreEtTexteDisponibleEnveloppe = Colors.redAccent[200]!;
-    } else if (progression == 1.0) {
+      couleurBarreEtTexteDisponibleEnveloppe = Colors.redAccent[100]!;
+    } else if (progression == 1.0 && enveloppe.disponible == 0) {
       couleurBarreEtTexteDisponibleEnveloppe =
-          HSLColor.fromColor(couleurDeBaseEnveloppe)
-              .withSaturation(0.6)
+          HSLColor.fromColor(couleurDeBasePourEnveloppe)
+              .withSaturation(0.5)
+              .withLightness(HSLColor
+              .fromColor(couleurDeBasePourEnveloppe)
+              .lightness * 0.7)
               .toColor();
     } else if (progression > 0.85) {
       couleurBarreEtTexteDisponibleEnveloppe =
-          HSLColor.fromColor(couleurDeBaseEnveloppe)
+          HSLColor.fromColor(couleurDeBasePourEnveloppe)
               .withLightness((HSLColor
-              .fromColor(couleurDeBaseEnveloppe)
-              .lightness * 0.9).clamp(0.0, 1.0))
+              .fromColor(couleurDeBasePourEnveloppe)
+              .lightness * 0.85).clamp(0.0, 1.0))
               .toColor();
     }
 
@@ -324,68 +267,66 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
         onTap: () {
           print('Enveloppe ${enveloppe
               .nom} cliquée (depuis BudgetCategoriesList)');
-          // TODO: Gérer la navigation/action, potentiellement via un callback
-          // Exemple: widget.onEnveloppeTap?.call(enveloppe); // Si vous ajoutez un tel callback
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-                  // Utilise enveloppe.icone de EnveloppePourAffichageBudget
                   if (enveloppe.icone != null) ...[
                     Icon(enveloppe.icone,
-                        color: HSLColor.fromColor(couleurDeBaseEnveloppe)
-                            .withAlpha(200)
+                        color: HSLColor
+                            .fromColor(couleurDeBasePourEnveloppe)
+                            .withAlpha(220)
                             .toColor(),
                         size: 20),
                     const SizedBox(width: 12),
                   ],
                   Expanded(
-                    // Utilise enveloppe.nom de EnveloppePourAffichageBudget
                     child: Text(
                       enveloppe.nom,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                          color: Colors.white),
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(
+                          color: Colors.white, fontWeight: FontWeight.w500),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Utilise enveloppe.disponible de EnveloppePourAffichageBudget
                   Text(
-                    '${enveloppe.disponible.toStringAsFixed(2)} \$',
+                    currencyFormatter.format(enveloppe.disponible),
                     style: theme.textTheme.titleSmall?.copyWith(
                         color: couleurBarreEtTexteDisponibleEnveloppe,
-                        fontWeight: FontWeight.w500),
+                        fontWeight: FontWeight.w600
+                    ),
                   ),
                 ],
               ),
-              // Utilise enveloppe.messageSous de EnveloppePourAffichageBudget
               if (enveloppe.messageSous != null &&
                   enveloppe.messageSous!.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Padding(
                   padding: EdgeInsets.only(
                       left: enveloppe.icone != null ? 32 : 0),
                   child: Text(
                     enveloppe.messageSous!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[400]),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: Colors.grey[400], fontSize: 11.5),
                   ),
                 ),
               ],
-              const SizedBox(height: 6),
+              const SizedBox(height: 7),
               Padding(
                 padding: EdgeInsets.only(
                     left: enveloppe.icone != null ? 32 : 0),
                 child: LinearProgressIndicator(
                   value: progression,
-                  backgroundColor: couleurDeBaseEnveloppe.withOpacity(0.25),
+                  backgroundColor: couleurDeBasePourEnveloppe.withOpacity(0.20),
                   valueColor: AlwaysStoppedAnimation<Color>(
                       couleurBarreEtTexteDisponibleEnveloppe),
-                  minHeight: 4,
-                  borderRadius: BorderRadius.circular(2),
+                  minHeight: 5,
+                  borderRadius: BorderRadius.circular(2.5),
                 ),
               ),
             ],
