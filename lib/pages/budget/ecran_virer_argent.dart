@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../models/compte_bancaire_model.dart';
 import '../../models/enveloppe_model.dart';
 import '../../models/item_de_selection_transfert.dart';
 import '../../services/service_transfert_argent.dart'; // Pour FirebaseAuth.instance
@@ -95,138 +96,123 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
   }
 
   Future<void> _chargerDonneesInitiales() async {
-    print(
-        "[EcranVirerArgent - _chargerDonneesInitiales] Début du chargement des données réelles.");
+    print("[EcranVirerArgent - _chargerDonneesInitiales] Début du chargement des données réelles.");
+    // La vérification _currentUser peut rester en dehors du try principal
+    // si vous voulez une gestion d'erreur différente pour ce cas.
+    // Cependant, si _currentUser EST null ici, les lignes suivantes lèveront une erreur
+    // car vous utilisez _currentUser!.uid. Il est donc préférable de l'inclure ou de retourner tôt.
+
     if (_currentUser == null) {
-      print(
-          "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: _currentUser est NULL au début du chargement.");
+      print("[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: _currentUser est null au début du chargement réel.");
       if (mounted) {
-        // L'errorMessage sera déjà défini par initState si _currentUser était null au départ
-        // Sinon, on le définit ici si _currentUser devient null entre-temps (peu probable mais possible)
-        _errorMessage = _errorMessage ?? "Utilisateur non authentifié.";
+        setState(() {
+          _errorMessage = "Utilisateur non authentifié. Impossible de charger les données.";
+          // _isLoading devrait aussi être mis à false ici si vous ne le faites pas dans _chargerDonneesInitialesAvecAffichage
+        });
       }
-      return;
+      return; // Important de sortir si _currentUser est null
     }
 
-    try {
-      print(
-          "[EcranVirerArgent - _chargerDonneesInitiales] Tentative de chargement du document pour UID: ${_currentUser!
-              .uid}");
-      final DocumentSnapshot<Map<String, dynamic>> userDoc =
-      await _firestore.collection('users').doc(_currentUser!.uid).get();
-
-      if (!userDoc.exists || userDoc.data() == null) {
-        print(
-            "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: Document utilisateur introuvable ou vide pour UID: ${_currentUser!
-                .uid}");
-        throw Exception("Document utilisateur introuvable ou vide.");
-      }
-      print(
-          "[EcranVirerArgent - _chargerDonneesInitiales] Document utilisateur TROUVÉ pour UID: ${_currentUser!
-              .uid}. Data: ${userDoc.data()}");
-
-      // Vérification spécifique du champ soldePretAPlacerGlobal
-      if (!userDoc.data()!.containsKey('soldePretAPlacerGlobal')) {
-        print(
-            "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: Champ 'soldePretAPlacerGlobal' MANQUANT dans le document utilisateur UID: ${_currentUser!
-                .uid}");
-        throw Exception(
-            "Champ 'soldePretAPlacerGlobal' manquant dans les données utilisateur.");
-      }
-      _soldePretAPlacerActuel =
-          (userDoc.data()!['soldePretAPlacerGlobal'] as num? ?? 0.0).toDouble();
-      print(
-          "[EcranVirerArgent - _chargerDonneesInitiales] Solde Prêt à Placer actuel: $_soldePretAPlacerActuel");
-
+    try { // <--- DÉBUT DU BLOC TRY
       List<ItemDeSelectionTransfert> itemsTemp = [];
       _mapEnveloppesChargees.clear();
       _mapEnveloppeIdACategorieId.clear();
 
-      itemsTemp.add(ItemDeSelectionTransfert(
-        id: ServiceTransfertArgent.idPretAPlacer,
-        nom: 'Prêt à placer',
-        solde: _soldePretAPlacerActuel,
-        estPretAPlacer: true,
-      ));
-      print(
-          "[EcranVirerArgent - _chargerDonneesInitiales] Item 'Prêt à placer' ajouté.");
+      // 1. Charger tous les comptes bancaires de l'utilisateur
+      final comptesSnapshot = await _firestore
+          .collection('users')
+          .doc(_currentUser!.uid) // Utilisation de ! donc doit être dans try ou après une vérification non-null
+          .collection('comptes_bancaires')
+          .get();
 
+      List<CompteBancaireModel> tousLesComptes = comptesSnapshot.docs
+          .map((doc) => CompteBancaireModel.fromFirestore(doc))
+          .toList();
+
+      // 2. Charger toutes les enveloppes (de toutes les catégories)
+      List<EnveloppeModel> toutesLesEnveloppes = [];
       final categoriesSnapshot = await _firestore
           .collection('users')
           .doc(_currentUser!.uid)
           .collection('categories')
           .get();
-      print(
-          "[EcranVirerArgent - _chargerDonneesInitiales] Nombre de catégories trouvées: ${categoriesSnapshot
-              .docs.length}");
 
       for (QueryDocumentSnapshot catDoc in categoriesSnapshot.docs) {
-        print(
-            "[EcranVirerArgent - _chargerDonneesInitiales] Traitement catégorie ID: ${catDoc
-                .id}, Nom: ${catDoc.data().toString().contains('nom') ? (catDoc
-                .data() as Map<String, dynamic>)['nom'] : 'N/A'}");
-        final enveloppesSnapshot = await catDoc.reference.collection(
-            'enveloppes').orderBy('nom').get();
-        print(
-            "[EcranVirerArgent - _chargerDonneesInitiales] Nombre d'enveloppes pour catégorie ${catDoc
-                .id}: ${enveloppesSnapshot.docs.length}");
-
-        for (QueryDocumentSnapshot<
-            Map<String, dynamic>> envDoc in enveloppesSnapshot.docs) {
-          try {
-            print(
-                "[EcranVirerArgent - _chargerDonneesInitiales] Tentative de parsing enveloppe ID: ${envDoc
-                    .id}");
+        final enveloppesSnapshot = await catDoc.reference
+            .collection('enveloppes')
+            .orderBy('nom')
+            .get();
+        for (QueryDocumentSnapshot<Map<String, dynamic>> envDoc in enveloppesSnapshot.docs) {
+          try { // try-catch interne pour le parsing d'une seule enveloppe (bonne pratique)
             EnveloppeModel env = EnveloppeModel.fromSnapshot(envDoc);
+            toutesLesEnveloppes.add(env);
             _mapEnveloppesChargees[env.id] = env;
             _mapEnveloppeIdACategorieId[env.id] = catDoc.id;
-
-            itemsTemp.add(ItemDeSelectionTransfert(
-              id: env.id,
-              nom: env.nom,
-              solde: env.montantAlloueActuellement,
-              estPretAPlacer: false,
-            ));
-            print(
-                "[EcranVirerArgent - _chargerDonneesInitiales] Enveloppe parsée et ajoutée: ${env
-                    .nom}, ID: ${env.id}");
           } catch (e, s) {
-            print(
-                "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR PARSING ENVELOPPE: L'enveloppe ID '${envDoc
-                    .id}' dans catégorie '${catDoc
-                    .id}' n'a pas pu être parsée. Erreur: $e\nStackTrace: $s");
-            // Décidez si vous voulez ajouter un _errorMessage partiel ou simplement ignorer l'enveloppe
+            print("[EcranVirerArgent] ERREUR PARSING ENVELOPPE ID '${envDoc.id}': $e\nStackTrace: $s");
+            // Vous pourriez décider de continuer à charger les autres enveloppes
           }
         }
       }
 
-      if (itemsTemp.length > 1) {
-        List<ItemDeSelectionTransfert> enveloppesSeulement = itemsTemp.where((
-            item) => !item.estPretAPlacer).toList();
-        enveloppesSeulement.sort((a, b) =>
-            a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
-        _tousLesItemsSelectionnables =
-            [itemsTemp.firstWhere((item) => item.estPretAPlacer)] +
-                enveloppesSeulement;
-      } else {
-        _tousLesItemsSelectionnables = itemsTemp;
+      // 3. Calculer "Prêt à placer" pour chaque compte
+      for (CompteBancaireModel compte in tousLesComptes) {
+        double totalAlloueAuxEnveloppesPourCeCompte = 0;
+        for (EnveloppeModel env in toutesLesEnveloppes) {
+          if (env.compteSourceId == compte.id) {
+            totalAlloueAuxEnveloppesPourCeCompte += env.montantAlloueActuellement;
+          }
+        }
+        double soldeBrutDuCompte = compte.soldeInitial;
+        double soldePretAPlacerDuCompte = soldeBrutDuCompte - totalAlloueAuxEnveloppesPourCeCompte;
+
+        itemsTemp.add(ItemDeSelectionTransfert(
+          id: 'comptepap_${compte.id}',
+          nom: '${compte.nom} (Prêt à placer)',
+          solde: soldePretAPlacerDuCompte < 0 ? 0 : soldePretAPlacerDuCompte,
+          estPretAPlacer: true,
+        ));
+        print("[EcranVirerArgent] 'Prêt à placer' pour compte '${compte.nom}' ajouté. Solde calculé: $soldePretAPlacerDuCompte");
       }
-      print(
-          "[EcranVirerArgent - _chargerDonneesInitiales] Nombre total d'items sélectionnables: ${_tousLesItemsSelectionnables
-              .length}");
+
+      // 4. Ajouter les enveloppes elles-mêmes
+      for (EnveloppeModel env in toutesLesEnveloppes) {
+        itemsTemp.add(ItemDeSelectionTransfert(
+          id: env.id,
+          nom: env.nom,
+          solde: env.montantAlloueActuellement,
+          estPretAPlacer: false,
+        ));
+      }
+
+      // 5. Trier et mettre à jour la liste principale
+      if (itemsTemp.isNotEmpty) {
+        List<ItemDeSelectionTransfert> itemsPretAPlacer = itemsTemp.where((item) => item.estPretAPlacer).toList();
+        List<ItemDeSelectionTransfert> enveloppesSeulement = itemsTemp.where((item) => !item.estPretAPlacer).toList();
+
+        itemsPretAPlacer.sort((a, b) => a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
+        enveloppesSeulement.sort((a, b) => a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
+
+        _tousLesItemsSelectionnables = [...itemsPretAPlacer, ...enveloppesSeulement];
+      } else {
+        _tousLesItemsSelectionnables = [];
+      }
+      print("[EcranVirerArgent - _chargerDonneesInitiales] Nombre total d'items sélectionnables: ${_tousLesItemsSelectionnables.length}");
 
       _mettreAJourSelectionsInitiales();
-    } catch (e, s) {
+
+    } catch (e, s) { // <--- LE BLOC CATCH ASSOCIÉ AU TRY CI-DESSUS
       print(
           "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR GLOBALE pendant le chargement: $e\nStackTrace: $s");
       if (mounted) {
         setState(() {
           _errorMessage = "Erreur de chargement des données : ${e.toString()}";
+          // _isLoading devrait être false ici aussi pour arrêter l'indicateur
         });
       }
     }
-    print(
-        "[EcranVirerArgent - _chargerDonneesInitiales] Fin du chargement des données réelles.");
+    // Le print de fin peut être ici ou dans un bloc finally si vous en aviez un
+    print("[EcranVirerArgent - _chargerDonneesInitiales] Fin du chargement des données réelles.");
   }
 
   void _mettreAJourSelectionsInitiales() {

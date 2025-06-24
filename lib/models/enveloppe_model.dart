@@ -9,7 +9,7 @@ class EnveloppeModel {
   final String userId;
   final String nom;
   final int ordre;
-  // PAS DE CHAMP couleur ICI
+  final String compteSourceId;
 
   double montantAlloueActuellement;
   String? compteSourceIdDeLaDerniereAllocation;
@@ -35,6 +35,7 @@ class EnveloppeModel {
     this.objectifDateEcheance,
     required this.dateCreation,
     required this.derniereModification,
+    required this.compteSourceId,
   });
 
   // ... (getters comme statut restent valides) ...
@@ -66,6 +67,7 @@ class EnveloppeModel {
       dateCreation: data['dateCreation'] as Timestamp? ?? Timestamp.now(),
       derniereModification: data['derniereModification'] as Timestamp? ??
           Timestamp.now(),
+      compteSourceId: data['compteSourceId'] as String? ?? '',
     );
   }
 
@@ -84,6 +86,7 @@ class EnveloppeModel {
           objectifDateEcheance!) : null,
       'dateCreation': dateCreation,
       'derniereModification': derniereModification,
+      'compteSourceId': compteSourceId,
     };
   }
 }
