@@ -89,50 +89,36 @@ class _EcranBudgetState extends State<EcranBudget> {
 
   // MODIFIÉ: Renommée et type de retour changé
   EnveloppePourAffichageBudget _creerViewModelEnveloppePourListe(
-      EnveloppeTestData enveloppeSource, // enveloppeSource contient montantAlloue et soldeActuel
-      // Color couleurCategorieParente, // On avait convenu que la couleur vient de l'enveloppe elle-même
-      // DateTime moisAnneeCourant, // Pas utilisé ici pour le calcul de base
+      EnveloppeTestData enveloppeSource,
       ) {
     double alloue = enveloppeSource.montantAlloue;
-    double soldeActuel = enveloppeSource.soldeActuel; // Vient de EnveloppeTestData
-
-    // Si soldeActuel > alloue, cela pourrait signifier un report ou un revenu dans l'enveloppe.
-    // Pour une dépense simple, on s'attend à ce que soldeActuel <= alloue.
-    // Une dépense est ce qui a été "consommé" de l'allocation.
+    double soldeActuel = enveloppeSource.soldeActuel;
     double depense = alloue - soldeActuel;
     if (depense < 0) {
-      depense = 0; // On ne peut pas avoir de dépense négative dans ce contexte simple.
-      // Un solde actuel > alloué signifie que disponible > alloué.
+      depense = 0;
     }
+    double disponible = soldeActuel;
 
-    double disponible = soldeActuel; // Le solde actuel EST ce qui est disponible.
-
-    String? messageSous;
-    if (enveloppeSource.typeObjectif != TypeObjectif.aucun &&
-        enveloppeSource.montantCible != null &&
-        enveloppeSource.montantCible! > 0) {
-      if (enveloppeSource.typeObjectif == TypeObjectif.dateFixe) {
-        messageSous = 'Cible: ${enveloppeSource.montantCible!.toStringAsFixed(0)}\$ ';
-        if (enveloppeSource.dateCible != null) {
-          messageSous += DateFormat('d MMM', 'fr_CA').format(enveloppeSource.dateCible!);
-        }
-      } else if (enveloppeSource.typeObjectif == TypeObjectif.mensuel) {
-        messageSous = 'Prévu: ${enveloppeSource.montantCible!.toStringAsFixed(0)}\$';
-      }
-    }
+    // PAS DE CALCUL DE messageSous ICI
 
     return EnveloppePourAffichageBudget(
       id: enveloppeSource.id,
       nom: enveloppeSource.nom,
       montantAlloue: alloue,
-      disponible: disponible, // C'est le soldeActuel
-      depense: depense,       // Calculé comme alloue - soldeActuel
-      couleur: Color(enveloppeSource.couleurThemeValue!), // Assurez-vous que couleurThemeValue n'est jamais null
-      icone: enveloppeSource.iconeCodePoint != null ? IconData(enveloppeSource.iconeCodePoint!, fontFamily: 'MaterialIcons') : null,
+      disponible: disponible,
+      depense: depense,
+      couleur: Color(enveloppeSource.couleurThemeValue),
+      icone: enveloppeSource.iconeCodePoint != null
+          ? IconData(enveloppeSource.iconeCodePoint!, fontFamily: 'MaterialIcons')
+          : null,
+      typeObjectif: enveloppeSource.typeObjectif,   // CORRIGÉ : Transférer la valeur
+      montantCible: enveloppeSource.montantCible,   // CORRIGÉ : Transférer la valeur
+      // dateCible: enveloppeSource.dateCible,    // Transférez si EnveloppePourAffichageBudget en a besoin directement
+      // ET si EnveloppeTestData le fournit déjà correctement typé.
+      // PAS DE messageSousObjectif ICI
     );
   }
 
-  // MODIFIÉ: Utilise _creerViewModelEnveloppePourListe
   CategorieBudgetModel _transformerCategorieFirestoreEnModel(
       Categorie categorieFirestore, // categorieFirestore est de type Categorie de gestion_categories...
       ) {

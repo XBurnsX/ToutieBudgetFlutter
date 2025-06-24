@@ -93,14 +93,27 @@ class EnveloppeUIData {
 
   factory EnveloppeUIData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     Map<String, dynamic> data = doc.data()!;
+
+    // ----> AJOUTEZ CES PRINTS <----
+    print('Dans fromFirestore pour doc ID ${doc.id}:');
+    print('  Valeur brute de typeObjectif: ${data['typeObjectif']} (Type: ${data['typeObjectif']?.runtimeType})');
+    print('  Valeur brute de montantCible: ${data['montantCible']} (Type: ${data['montantCible']?.runtimeType})');
+
+    TypeObjectif objectif = stringToTypeObjectif(data['typeObjectif'] as String?);
+    double? cible = (data['montantCible'] as num?)?.toDouble();
+
+    print('  Valeur convertie de typeObjectif: $objectif');
+    print('  Valeur convertie de montantCible: $cible');
+    // ---- FIN DES PRINTS ----
+
     return EnveloppeUIData(
       id: doc.id,
       nom: data['nom'] as String? ?? '',
       iconeCodePoint: data['iconeCodePoint'] as int?,
       soldeActuel: (data['soldeActuel'] as num?)?.toDouble() ?? 0.0,
       montantAlloue: (data['montantAlloue'] as num?)?.toDouble() ?? 0.0,
-      typeObjectif: stringToTypeObjectif(data['typeObjectif'] as String?), // APPEL CORRECT
-      montantCible: (data['montantCible'] as num?)?.toDouble(),
+      typeObjectif: objectif, // Utilise la valeur convertie et imprimée
+      montantCible: cible,   // Utilise la valeur convertie et imprimée
       dateCible: (data['dateCible'] as Timestamp?)?.toDate(),
       couleurThemeValue: data['couleurThemeValue'] as int? ?? _defaultCouleurThemeValue,
       couleurSoldeCompteValue: data['couleurSoldeCompteValue'] as int? ?? _defaultCouleurSoldeCompteValue,
@@ -140,8 +153,18 @@ class EnveloppeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currencyFormatter = NumberFormat.currency(
-        locale: 'fr_CA', symbol: '\$');
+    final currencyFormatter = NumberFormat.currency(locale: 'fr_CA', symbol: '\$');
+
+    // AJOUTEZ CES PRINTS POUR DÉBOGUER
+    print('--- EnveloppeCard Debug ---');
+    print('Nom: ${enveloppe.nom}');
+    print('ID: ${enveloppe.id}');
+    print('Type Objectif: ${enveloppe.typeObjectif}'); // Très important
+    print('Montant Cible: ${enveloppe.montantCible}');   // Très important
+    print('Date Cible: ${enveloppe.dateCible}');       // Très important
+    print('Solde Actuel: ${enveloppe.soldeActuel}');     // Important pour la condition principale
+    print('Montant Alloué: ${enveloppe.montantAlloue}');
+    print('---------------------------');
 
     Color couleurFondBulleSolde;
     Color couleurTexteBulleSolde;
