@@ -1,60 +1,49 @@
-import 'dart:ui'; // Nécessaire pour le type Color
+import 'dart:ui'; // Pour Color
+import 'package:flutter/material.dart'; // Pour IconData
 
-import 'package:flutter/material.dart'; // Nécessaire pour IconData (et Color si vous ne l'importez pas de dart:ui)
+// Si vous prévoyez de séparer EnveloppePourAffichageBudget dans son propre fichier,
+// vous importerez ce fichier ici. Pour l'instant, les deux sont dans ce fichier.
 
-// Vous pouvez garder ces modèles dans ce fichier ou les déplacer dans leurs propres fichiers
-// par exemple, 'models/categorie_budget_model.dart' et 'models/enveloppe_model.dart'
+class EnveloppePourAffichageBudget {
+  final String id;
+  final String nom;
+  final double montantAlloue;
+  final double disponible;
+  final double depense;
+  final Color couleur;
+  final IconData? icone;
+  final String? messageSous;
+
+  EnveloppePourAffichageBudget({
+    required this.id,
+    required this.nom,
+    required this.montantAlloue,
+    required this.disponible,
+    required this.depense,
+    required this.couleur,
+    this.icone,
+    this.messageSous,
+  });
+}
 
 class CategorieBudgetModel {
-  String id;
-  String nom;
-  Color couleur; // Couleur de base pour la catégorie
-  double alloueTotal;
-  double depenseTotal;
-  double disponibleTotal;
-  String info;
-  List<EnveloppeModel> enveloppes;
+  final String id;
+  final String nom;
+  final Color couleur;
+  final String info;
+  final double alloueTotal;
+  final double depenseTotal;
+  final double disponibleTotal;
+  final List<EnveloppePourAffichageBudget> enveloppes; // Référence EnveloppePourAffichageBudget
 
   CategorieBudgetModel({
     required this.id,
     required this.nom,
-    required this.couleur, // Ajouté au constructeur
-    this.alloueTotal = 0.0,
-    this.depenseTotal = 0.0,
-    this.disponibleTotal = 0.0,
-    this.info = "",
-    List<EnveloppeModel>? enveloppes,
-  }) : enveloppes = enveloppes ?? [];
-
-// Vous pouvez ajouter ici des méthodes factory pour la conversion depuis/vers Firestore
-// si vous prévoyez de stocker ces modèles directement.
-// Exemple: factory CategorieBudgetModel.fromFirestore(DocumentSnapshot doc) { ... }
-// Map<String, dynamic> toFirestore() { ... }
-}
-
-class EnveloppeModel {
-  String id;
-  String nom;
-  IconData? icone;
-  Color? couleur; // Optionnel: Couleur spécifique pour l'enveloppe,
-  // peut hériter ou moduler la couleur de la catégorie parente sinon.
-  double montantBudgete; // Souvent le même que montantAlloue au début du mois
-  double montantAlloue; // Montant effectivement assigné à cette enveloppe
-  double depense;
-  double disponible;
-  String? messageSous; // Un petit message ou une note sous l'enveloppe
-
-  EnveloppeModel({
-    required this.id,
-    required this.nom,
-    this.icone,
-    this.couleur, // Ajouté au constructeur (optionnel)
-    this.montantBudgete = 0.0,
-    this.montantAlloue = 0.0,
-    this.depense = 0.0,
-    this.disponible = 0.0,
-    this.messageSous,
+    required this.couleur,
+    required this.info,
+    required this.alloueTotal,
+    required this.depenseTotal,
+    required this.disponibleTotal,
+    required this.enveloppes,
   });
-
-// De même, des méthodes from/to Firestore peuvent être ajoutées ici.
 }

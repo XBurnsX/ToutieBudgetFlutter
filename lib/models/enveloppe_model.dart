@@ -1,5 +1,7 @@
+// Nom du fichier : models/enveloppe_model.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart'; // Pour Color et potentiellement IconData si vous l'ajoutez ici
+import 'package:flutter/material.dart'; // Pour Color et IconData
 
 // L'enum peut être ici ou dans un fichier d'utilitaires séparé si utilisé ailleurs
 enum StatutEnveloppe { Vide, EnCours, Atteint, Negatif }
@@ -10,17 +12,22 @@ class EnveloppeModel {
   final String userId;
   final String nom;
   final int ordre;
-  Color? couleur; // <--- AJOUTER CETTE LIGNE (rendre optionnel avec '?')
+  Color? couleur; // Couleur spécifique pour l'enveloppe
 
-  double montantAlloueActuellement;
+  double montantAlloueActuellement; // C'est le SOLDE actuel
   String? compteSourceIdDeLaDerniereAllocation;
 
-  double? objectifMontantPeriodique;
-  String? typeObjectif;
+  double? objectifMontantPeriodique; // Le montant total visé pour la période
+  String? typeObjectif; // ex: 'mensuel', 'dateFixe', 'aucun'
   DateTime? objectifDateEcheance;
 
   Timestamp dateCreation;
   Timestamp derniereModification;
+
+  // --- Champs optionnels que vous pourriez vouloir ajouter ---
+  // int? iconeCodePoint; // Pour stocker IconData.codePoint
+  // String? iconeFontFamily; // Pour stocker IconData.fontFamily (ex: 'MaterialIcons')
+  // String? messageSous;
 
   EnveloppeModel({
     required this.id,
@@ -28,7 +35,7 @@ class EnveloppeModel {
     required this.userId,
     required this.nom,
     required this.ordre,
-    this.couleur, // <--- AJOUTER AU CONSTRUCTEUR
+    this.couleur,
     this.montantAlloueActuellement = 0.0,
     this.compteSourceIdDeLaDerniereAllocation,
     this.objectifMontantPeriodique,
@@ -36,10 +43,20 @@ class EnveloppeModel {
     this.objectifDateEcheance,
     required this.dateCreation,
     required this.derniereModification,
+    // this.iconeCodePoint, // Décommentez si vous ajoutez l'icône
+    // this.iconeFontFamily, // Décommentez si vous ajoutez l'icône
+    // this.messageSous,    // Décommentez si vous ajoutez messageSous
   });
 
+  // Getter pour IconData si vous stockez codePoint et fontFamily
+  // IconData? get icone {
+  //   if (iconeCodePoint != null && iconeFontFamily != null) {
+  //     return IconData(iconeCodePoint!, fontFamily: iconeFontFamily);
+  //   }
+  //   return null;
+  // }
+
   StatutEnveloppe get statut {
-    // ... (votre logique de statut existante) ...
     if (montantAlloueActuellement < 0) return StatutEnveloppe.Negatif;
     if (montantAlloueActuellement == 0 &&
         (objectifMontantPeriodique == null || objectifMontantPeriodique == 0)) {
@@ -50,30 +67,38 @@ class EnveloppeModel {
         return StatutEnveloppe.Atteint;
       }
     }
-    if (montantAlloueActuellement > 0) return StatutEnveloppe.EnCours;
-    return StatutEnveloppe.Vide;
+    if (montantAlloueActuellement > 0) return StatutEnveloppe
+        .EnCours; // Même sans objectif, s'il y a de l'argent, c'est en cours.
+    return StatutEnveloppe.Vide; // Cas par défaut
   }
 
   factory EnveloppeModel.fromSnapshot(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     if (data == null) {
-      throw Exception("Document data was null!");
+      // Gérer le cas où le document n'existe pas ou n'a pas de données
+      // Vous pourriez lancer une exception ou retourner une instance par défaut
+      throw Exception("Données du document null pour l'ID: ${doc.id}");
     }
-    // Gérer la lecture de la couleur depuis Firestore (si stockée comme String Hex ou int)
-    String? couleurHex = data['couleur'] as String?;
-    Color? couleurObjet;
-    if (couleurHex != null && couleurHex.isNotEmpty) {
+
+    Color? parsedColor;
+    if (data['couleur'] != null) {
       try {
-        // Supposer un format #RRGGBB ou #AARRGGBB
-        final buffer = StringBuffer();
-        if (couleurHex.length == 6 || couleurHex.length == 7) buffer.write(
-            'ff'); // Opaque si alpha non fourni
-        buffer.write(couleurHex.replaceFirst('#', ''));
-        couleurObjet = Color(int.parse(buffer.toString(), radix: 16));
+        String couleurHex = data['couleur'] as String;
+        // Gère les formats #RRGGBB, RRGGBB, #AARRGGBB, AARRGGBB
+        if (couleurHex.startsWith('#')) {
+          couleurHex = couleurHex.substring(1);
+        }
+        if (couleurHex.length == 6) { // RRGGBB
+          couleurHex = 'FF$couleurHex'; // Ajoute alpha opaque
+        }
+        if (couleurHex.length == 8) { // AARRGGBB
+          parsedColor = Color(int.parse(couleurHex, radix: 16));
+        }
       } catch (e) {
-        print("Erreur de parsing de la couleur pour l'enveloppe ${doc.id}: $e");
-        // Gérer l'erreur, par exemple en utilisant une couleur par défaut ou null
+        print("Erreur de parsing de la couleur pour l'enveloppe ${doc
+            .id}: $e. Couleur brute: ${data['couleur']}");
+        // Optionnel: assigner une couleur par défaut ou laisser null
       }
     }
 
@@ -83,20 +108,22 @@ class EnveloppeModel {
       userId: data['userId'] as String? ?? '',
       nom: data['nom'] as String? ?? 'Nom Inconnu',
       ordre: data['ordre'] as int? ?? 0,
-      couleur: couleurObjet,
-      // <--- ASSIGNER LA COULEUR LUE
-      montantAlloueActuellement:
-      (data['montantAlloueActuellement'] as num?)?.toDouble() ?? 0.0,
-      compteSourceIdDeLaDerniereAllocation:
-      data['compteSourceIdDeLaDerniereAllocation'] as String?,
-      objectifMontantPeriodique:
-      (data['objectifMontantPeriodique'] as num?)?.toDouble(),
+      couleur: parsedColor,
+      montantAlloueActuellement: (data['montantAlloueActuellement'] as num?)
+          ?.toDouble() ?? 0.0,
+      compteSourceIdDeLaDerniereAllocation: data['compteSourceIdDeLaDerniereAllocation'] as String?,
+      objectifMontantPeriodique: (data['objectifMontantPeriodique'] as num?)
+          ?.toDouble(),
       typeObjectif: data['typeObjectif'] as String?,
-      objectifDateEcheance:
-      (data['objectifDateEcheance'] as Timestamp?)?.toDate(),
+      objectifDateEcheance: (data['objectifDateEcheance'] as Timestamp?)
+          ?.toDate(),
       dateCreation: data['dateCreation'] as Timestamp? ?? Timestamp.now(),
-      derniereModification:
-      data['derniereModification'] as Timestamp? ?? Timestamp.now(),
+      // Valeur par défaut si null
+      derniereModification: data['derniereModification'] as Timestamp? ??
+          Timestamp.now(), // Valeur par défaut si null
+      // iconeCodePoint: data['iconeCodePoint'] as int?,       // Décommentez
+      // iconeFontFamily: data['iconeFontFamily'] as String?, // Décommentez
+      // messageSous: data['messageSous'] as String?,         // Décommentez
     );
   }
 
@@ -106,22 +133,21 @@ class EnveloppeModel {
       'userId': userId,
       'nom': nom,
       'ordre': ordre,
-      // Gérer la sauvegarde de la couleur (par exemple, en String Hex)
-      'couleur': couleur != null
-          ? '#${couleur!.value.toRadixString(16).padLeft(8, '0').substring(
-          2)}' // Format RRGGBB
-      // Ou '#${couleur!.value.toRadixString(16).padLeft(8, '0')}' pour AARRGGBB
-          : null,
+      'couleur': couleur != null ? '#${couleur!.value.toRadixString(16).padLeft(
+          8, '0').substring(2)}' : null,
+      // RRGGBB, sans alpha
+      // Pour stocker avec Alpha (AARRGGBB): '#${couleur!.value.toRadixString(16).padLeft(8, '0')}'
       'montantAlloueActuellement': montantAlloueActuellement,
-      'compteSourceIdDeLaDerniereAllocation':
-      compteSourceIdDeLaDerniereAllocation,
+      'compteSourceIdDeLaDerniereAllocation': compteSourceIdDeLaDerniereAllocation,
       'objectifMontantPeriodique': objectifMontantPeriodique,
       'typeObjectif': typeObjectif,
-      'objectifDateEcheance': objectifDateEcheance != null
-          ? Timestamp.fromDate(objectifDateEcheance!)
-          : null,
+      'objectifDateEcheance': objectifDateEcheance != null ? Timestamp.fromDate(
+          objectifDateEcheance!) : null,
       'dateCreation': dateCreation,
       'derniereModification': derniereModification,
+      // 'iconeCodePoint': iconeCodePoint,     // Décommentez
+      // 'iconeFontFamily': iconeFontFamily,  // Décommentez
+      // 'messageSous': messageSous,          // Décommentez
     };
   }
 }

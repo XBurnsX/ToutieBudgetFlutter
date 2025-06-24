@@ -3,11 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:toutie_budget/models/compte_model.dart';
-import 'package:toutie_budget/models/categorie_budget_model.dart'; // VÉRIFIEZ CE CHEMIN
+import 'package:toutie_budget/models/categorie_budget_model.dart';
 import 'package:toutie_budget/widgets/transactions_review_banner.dart';
 import 'package:toutie_budget/widgets/budget_categories_list.dart';
+import 'gestion_categories_enveloppes_screen.dart'
+    show Categorie, EnveloppeTestData, TypeObjectif, GestionCategoriesEnveloppesScreen; // Assurez-vous d'importer GestionCategoriesEnveloppesScreen
 
-import 'gestion_categories_enveloppes_screen.dart';
 
 class EcranBudget extends StatefulWidget {
   const EcranBudget({super.key});
@@ -23,101 +24,266 @@ class _EcranBudgetState extends State<EcranBudget> {
       .now()
       .month, 1);
   User? _currentUser;
-  bool _isLoading = true; // Pour les données non-streamées (catégories, nombre à revoir)
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Stream<List<Compte>>? _comptesStream;
+  Stream<List<CategorieBudgetModel>>? _categoriesStream;
 
   int _nombreTransactionsARevoir = 0;
-  List<CategorieBudgetModel> _categoriesDuBudget = [];
-
-  // _etatsDepliageCategories a été supprimé d'ici
+  bool _isLoadingDonneesAnnexes = true;
 
   @override
   void initState() {
     super.initState();
     _currentUser = FirebaseAuth.instance.currentUser;
+
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+          if (_currentUser != null) {
+            _comptesStream = _getComptesStream();
+            _categoriesStream = _getCategoriesBudgetStream();
+            _chargerDonneesAnnexes();
+          } else {
+            _comptesStream = Stream.value([]);
+            _categoriesStream = Stream.value([]);
+            _nombreTransactionsARevoir = 0;
+            _isLoadingDonneesAnnexes = false;
+          }
+        });
+      }
+    });
+
     if (_currentUser != null) {
       _comptesStream = _getComptesStream();
+      _categoriesStream = _getCategoriesBudgetStream();
+      _chargerDonneesAnnexes();
+    } else {
+      _isLoadingDonneesAnnexes = false;
     }
-    _chargerDonneesBudgetNonStream();
   }
 
   Stream<List<Compte>>? _getComptesStream() {
-    if (_currentUser == null) {
-      return Stream.value([]);
-    }
-    return FirebaseFirestore.instance
+    if (_currentUser == null) return Stream.value([]);
+    // TODO: Filtrer par _moisAnneeCourant si nécessaire
+    return _firestore
         .collection('users')
         .doc(_currentUser!.uid)
         .collection('comptes')
         .orderBy('nom')
         .snapshots()
         .map((querySnapshot) {
-      print(
-          "Mise à jour du stream des comptes reçue. Nombre de documents: ${querySnapshot
-              .docs.length}");
-      final comptes = querySnapshot.docs.map((doc) {
+      return querySnapshot.docs.map((doc) {
         try {
           return Compte.fromSnapshot(
               doc as DocumentSnapshot<Map<String, dynamic>>);
         } catch (e, stacktrace) {
-          print("Stream - ERREUR lors du mapping du document ${doc.id}: $e");
-          print("Stream - Stacktrace: $stacktrace");
+          print(
+              "Stream Comptes - ERREUR parsing doc ${doc.id}: $e\n$stacktrace");
           return null;
         }
       }).whereType<Compte>().toList();
-      return comptes;
     });
   }
 
-  Future<void> _chargerDonneesBudgetNonStream() async {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = true;
+  // MODIFIÉ: Renommée et type de retour changé
+  EnveloppePourAffichageBudget _creerViewModelEnveloppePourListe(
+      EnveloppeTestData enveloppeSource, // enveloppeSource contient montantAlloue et soldeActuel
+      // Color couleurCategorieParente, // On avait convenu que la couleur vient de l'enveloppe elle-même
+      // DateTime moisAnneeCourant, // Pas utilisé ici pour le calcul de base
+      ) {
+    double alloue = enveloppeSource.montantAlloue;
+    double soldeActuel = enveloppeSource.soldeActuel; // Vient de EnveloppeTestData
+
+    // Si soldeActuel > alloue, cela pourrait signifier un report ou un revenu dans l'enveloppe.
+    // Pour une dépense simple, on s'attend à ce que soldeActuel <= alloue.
+    // Une dépense est ce qui a été "consommé" de l'allocation.
+    double depense = alloue - soldeActuel;
+    if (depense < 0) {
+      depense = 0; // On ne peut pas avoir de dépense négative dans ce contexte simple.
+      // Un solde actuel > alloué signifie que disponible > alloué.
+    }
+
+    double disponible = soldeActuel; // Le solde actuel EST ce qui est disponible.
+
+    String? messageSous;
+    if (enveloppeSource.typeObjectif != TypeObjectif.aucun &&
+        enveloppeSource.montantCible != null &&
+        enveloppeSource.montantCible! > 0) {
+      if (enveloppeSource.typeObjectif == TypeObjectif.dateFixe) {
+        messageSous = 'Cible: ${enveloppeSource.montantCible!.toStringAsFixed(0)}\$ ';
+        if (enveloppeSource.dateCible != null) {
+          messageSous += DateFormat('d MMM', 'fr_CA').format(enveloppeSource.dateCible!);
+        }
+      } else if (enveloppeSource.typeObjectif == TypeObjectif.mensuel) {
+        messageSous = 'Prévu: ${enveloppeSource.montantCible!.toStringAsFixed(0)}\$';
+      }
+    }
+
+    return EnveloppePourAffichageBudget(
+      id: enveloppeSource.id,
+      nom: enveloppeSource.nom,
+      montantAlloue: alloue,
+      disponible: disponible, // C'est le soldeActuel
+      depense: depense,       // Calculé comme alloue - soldeActuel
+      couleur: Color(enveloppeSource.couleurThemeValue!), // Assurez-vous que couleurThemeValue n'est jamais null
+      icone: enveloppeSource.iconeCodePoint != null ? IconData(enveloppeSource.iconeCodePoint!, fontFamily: 'MaterialIcons') : null,
+      messageSous: messageSous,
+    );
+  }
+
+  // MODIFIÉ: Utilise _creerViewModelEnveloppePourListe
+  CategorieBudgetModel _transformerCategorieFirestoreEnModel(
+      Categorie categorieFirestore, // categorieFirestore est de type Categorie de gestion_categories...
+      ) {
+    Color couleurPourLaVueCategorie;
+    if (categorieFirestore.enveloppes.isNotEmpty &&
+        // Assurez-vous que EnveloppeTestData a bien un champ couleurThemeValue
+        categorieFirestore.enveloppes.first.couleurThemeValue != null) {
+      couleurPourLaVueCategorie = Color(categorieFirestore.enveloppes.first.couleurThemeValue!);
+    } else {
+      couleurPourLaVueCategorie = Colors.blueGrey[700]!; // Couleur par défaut
+    }
+
+    List<EnveloppePourAffichageBudget> enveloppesPourAffichage = [];
+    double alloueTotalCat = 0;
+    double depenseTotalCat = 0;
+    double disponibleTotalCat = 0;
+
+    for (var enveloppeSource in categorieFirestore.enveloppes) {
+      // Crée le ViewModel pour l'enveloppe. Les calculs de dépense/disponible sont DANS _creerViewModelEnveloppePourListe
+      EnveloppePourAffichageBudget enveloppeVM = _creerViewModelEnveloppePourListe(
+        enveloppeSource,
+        // On ne passe plus de dépenses ici, elles sont calculées à partir de enveloppeSource.soldeActuel
+        // On ne passe plus la couleur catégorie parente ici
+        // On ne passe plus moisAnneeCourant ici si non utilisé directement dans _creerViewModelEnveloppePourListe
+      );
+      enveloppesPourAffichage.add(enveloppeVM);
+
+      alloueTotalCat += enveloppeVM.montantAlloue;
+      depenseTotalCat += enveloppeVM.depense;
+      disponibleTotalCat += enveloppeVM.disponible;
+    }
+
+    // Alternative pour disponibleTotalCat pour être cohérent avec les enveloppes :
+    // disponibleTotalCat = alloueTotalCat - depenseTotalCat;
+    // Cependant, si disponible est directement le soldeActuel, alors sommer les soldes actuels est aussi correct.
+    // Pour l'instant, sommer les 'disponible' des VMs est plus direct.
+
+    return CategorieBudgetModel(
+      id: categorieFirestore.id,
+      nom: categorieFirestore.nom,
+      couleur: couleurPourLaVueCategorie,
+      info: '${enveloppesPourAffichage.length} enveloppe${enveloppesPourAffichage.length > 1 ? "s" : ""}', // Exemple d'info
+      alloueTotal: alloueTotalCat,
+      depenseTotal: depenseTotalCat,
+      disponibleTotal: disponibleTotalCat,
+      enveloppes: enveloppesPourAffichage,
+    );
+  }
+
+  Stream<List<CategorieBudgetModel>>? _getCategoriesBudgetStream() {
+    if (_currentUser == null) return Stream.value([]);
+    // Pas besoin de dépendre de _transactionsStream pour l'instant avec cette approche simplifiée
+
+    return _firestore
+        .collection('users')
+        .doc(_currentUser!.uid)
+        .collection('categories') // Ou la collection où vous stockez les données mensuelles
+        .orderBy('nom')
+        .snapshots()
+        .map((snapshot) { // Pas besoin d'asyncMap si on ne récupère pas d'autres données ici
+      if (snapshot.docs.isEmpty) {
+        return <CategorieBudgetModel>[];
+      }
+      return snapshot.docs.map((doc) {
+        try {
+          final categorieFirestore = Categorie.fromFirestore(
+              doc as DocumentSnapshot<Map<String, dynamic>>);
+          // Appelle la version simplifiée de _transformerCategorieFirestoreEnModel
+          return _transformerCategorieFirestoreEnModel(categorieFirestore);
+        } catch (e, stacktrace) {
+          print("Stream Catégories - ERREUR mapping doc ${doc.id}: $e");
+          print("Stream Catégories - Stacktrace: $stacktrace");
+          return null;
+        }
+      }).whereType<CategorieBudgetModel>().toList();
     });
+  }
 
-    // Simuler un délai de chargement
-    await Future.delayed(const Duration(milliseconds: 500));
+  Future<void> _chargerDonneesAnnexes() async {
+    if (!mounted || _currentUser == null) {
+      if (mounted) setState(() => _isLoadingDonneesAnnexes = false);
+      return;
+    }
 
-    // Simuler des données
-    _nombreTransactionsARevoir = 2; // Exemple
-    _categoriesDuBudget = [
+    if (mounted) setState(() => _isLoadingDonneesAnnexes = true);
 
-
-    ];
-    // L'initialisation de _etatsDepliageCategories a été supprimée d'ici
-
+    // TODO: Vraie logique de chargement pour _nombreTransactionsARevoir
+    await Future.delayed(const Duration(milliseconds: 200));
     if (!mounted) return;
+
     setState(() {
-      _isLoading = false;
+      _nombreTransactionsARevoir = 3; // Exemple
+      _isLoadingDonneesAnnexes = false;
     });
+  }
+
+  void _actualiserStreamsEtDonneesAnnexes() {
+    if (_currentUser != null && mounted) {
+      setState(() {
+        _comptesStream = _getComptesStream();
+        _categoriesStream = _getCategoriesBudgetStream();
+      });
+      _chargerDonneesAnnexes();
+    }
   }
 
   void _moisPrecedent() {
+    if (!mounted) return;
     setState(() {
       _moisAnneeCourant =
           DateTime(_moisAnneeCourant.year, _moisAnneeCourant.month - 1, 1);
     });
-    _chargerDonneesBudgetNonStream();
+    _actualiserStreamsEtDonneesAnnexes();
   }
 
   void _moisSuivant() {
+    if (!mounted) return;
     setState(() {
       _moisAnneeCourant =
           DateTime(_moisAnneeCourant.year, _moisAnneeCourant.month + 1, 1);
     });
-    _chargerDonneesBudgetNonStream();
+    _actualiserStreamsEtDonneesAnnexes();
   }
 
   void _handleDateTap() async {
+    if (!mounted) return;
     final DateTime? picked = await _showCustomMonthYearPicker(context);
     if (picked != null && (picked.year != _moisAnneeCourant.year ||
         picked.month != _moisAnneeCourant.month)) {
+      if (!mounted) return;
       setState(() {
         _moisAnneeCourant = DateTime(picked.year, picked.month, 1);
       });
-      _chargerDonneesBudgetNonStream();
+      _actualiserStreamsEtDonneesAnnexes();
     }
+  }
+
+  void _naviguerVersGestionCategories() {
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (context) => const GestionCategoriesEnveloppesScreen()),
+    ).then((_) {
+      if (mounted) {
+        // Les streams devraient se mettre à jour automatiquement si Firestore est modifié.
+        // Un rafraîchissement explicite est rarement nécessaire si les données streamées changent.
+        // _actualiserStreamsEtDonneesAnnexes(); // Décommentez seulement si absolument nécessaire
+      }
+    });
   }
 
   @override
@@ -134,13 +300,29 @@ class _EcranBudgetState extends State<EcranBudget> {
           title: _buildCustomAppBarTitle(theme),
           actions: _buildAppBarActions(theme),
         ),
-        body: const Center(
+        body: Center(
           child: Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Veuillez vous connecter pour voir votre budget.",
-              style: TextStyle(color: Colors.white70, fontSize: 16),
-              textAlign: TextAlign.center,
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "Veuillez vous connecter pour voir et gérer votre budget.",
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    // TODO: Implémenter la navigation vers l'écran de connexion
+                    print("Navigation vers l'écran de connexion demandée.");
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary),
+                  child: const Text(
+                      "Se connecter", style: TextStyle(color: Colors.white)),
+                )
+              ],
             ),
           ),
         ),
@@ -157,58 +339,88 @@ class _EcranBudgetState extends State<EcranBudget> {
         actions: _buildAppBarActions(theme),
       ),
       body: RefreshIndicator(
-        onRefresh: _chargerDonneesBudgetNonStream,
+        onRefresh: () async {
+          if (_currentUser != null) {
+            _actualiserStreamsEtDonneesAnnexes();
+          }
+        },
         backgroundColor: const Color(0xFF1E1E1E),
         color: Colors.white,
         child: StreamBuilder<List<Compte>>(
           stream: _comptesStream,
           builder: (context, snapshotComptes) {
-            bool streamComptesEnChargement = snapshotComptes.connectionState ==
-                ConnectionState.waiting;
+            return StreamBuilder<List<CategorieBudgetModel>>(
+              stream: _categoriesStream,
+              builder: (context, snapshotCategories) {
+                bool isWaitingForData = (_isLoadingDonneesAnnexes ||
+                    (snapshotComptes.connectionState ==
+                        ConnectionState.waiting && !snapshotComptes.hasData) ||
+                    (snapshotCategories.connectionState ==
+                        ConnectionState.waiting &&
+                        !snapshotCategories.hasData));
 
-            if (_isLoading ||
-                (streamComptesEnChargement && !snapshotComptes.hasData)) {
-              return const Center(
-                  child: CircularProgressIndicator(color: Colors.white));
-            }
+                if (isWaitingForData) {
+                  return const Center(
+                      child: CircularProgressIndicator(color: Colors.white));
+                }
 
-            if (snapshotComptes.hasError) {
-              print("Erreur du StreamBuilder pour les comptes: ${snapshotComptes
-                  .error}");
-              return Center(child: Text('Erreur de chargement des comptes.',
-                  style: TextStyle(color: Colors.red[300])));
-            }
+                if (snapshotComptes.hasError) {
+                  print("Erreur StreamBuilder comptes: ${snapshotComptes
+                      .error}\n${snapshotComptes.stackTrace}");
+                  return Center(child: Text('Erreur chargement comptes.',
+                      style: TextStyle(color: Colors.red[300])));
+                }
+                if (snapshotCategories.hasError) {
+                  print("Erreur StreamBuilder catégories: ${snapshotCategories
+                      .error}\n${snapshotCategories.stackTrace}");
+                  return Center(child: Text('Erreur chargement catégories.',
+                      style: TextStyle(color: Colors.red[300])));
+                }
 
-            List<Compte> comptesPourBandeaux = snapshotComptes.data ?? [];
+                List<Compte> comptesActuels = snapshotComptes.data ?? [];
+                List<
+                    CategorieBudgetModel> categoriesPourListe = snapshotCategories
+                    .data ?? [];
 
-            return ListView(
-              padding: EdgeInsets.zero,
-              children: <Widget>[
-                // Section 1: Bandeaux "Prêt à placer"
-                ...comptesPourBandeaux
-                    .where((compte) => compte.soldeActuel != 0)
-                    .map((compte) {
-                  return _buildReadyToAssignBanner(theme, compte);
-                }).toList(),
+                return ListView(
+                  padding: EdgeInsets.zero,
+                  children: <Widget>[
+                    if (comptesActuels.isNotEmpty)
+                      ...comptesActuels.map((compte) =>
+                          _buildReadyToAssignBanner(theme, compte)).toList()
+                    else
+                      if (snapshotComptes.connectionState ==
+                          ConnectionState.active)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0,
+                              vertical: 10.0),
+                          child: Text(
+                              "Aucun compte trouvé. Créez-en un pour commencer !",
+                              style: TextStyle(color: Colors.white70)),
+                        ),
 
-                // Section 2: Bandeau "Transactions à revoir" (Widget externe)
-                TransactionsReviewBanner(
-                  count: _nombreTransactionsARevoir,
-                  onTap: () {
-                    print('Bannière "Transactions à revoir" cliquée');
-                    // TODO: Implémentez la navigation ou l'action désirée
-                  },
-                ),
+                    if (_nombreTransactionsARevoir > 0)
+                      TransactionsReviewBanner(
+                        count: _nombreTransactionsARevoir,
+                        onTap: () {
+                          print('Bannière "Transactions à revoir" cliquée');
+                          // TODO: Naviguer vers l'écran de révision
+                        },
+                      ),
 
-                // Section 3: Section des catégories (Widget externe)
-                BudgetCategoriesList(
-                  categories: _categoriesDuBudget,
-                  comptesActuels: comptesPourBandeaux,
-                  isLoading: _isLoading,
-                ),
+                    BudgetCategoriesList(
+                      categories: categoriesPourListe,
+                      comptesActuels: comptesActuels,
+                      isLoading: false,
+                      // Géré par les StreamBuilders externes
+                      onCreerCategorieDemandee: _naviguerVersGestionCategories,
+                      moisAnneeCourant: _moisAnneeCourant,
+                    ),
 
-                const SizedBox(height: 80), // Espace en bas
-              ],
+                    const SizedBox(height: 80),
+                  ],
+                );
+              },
             );
           },
         ),
@@ -218,16 +430,16 @@ class _EcranBudgetState extends State<EcranBudget> {
 
   Future<DateTime?> _showCustomMonthYearPicker(BuildContext context) async {
     DateTime tempPickedDate = _moisAnneeCourant;
+    final ThemeData theme = Theme.of(context); // Récupérer le thème ici
 
     return showDialog<DateTime>(
       context: context,
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
           builder: (stfContext, stfSetState) {
-            List<String> moisNoms = List.generate(12, (index) {
-              return DateFormat.MMM('fr_FR').format(
-                  DateTime(tempPickedDate.year, index + 1));
-            });
+            List<String> moisNoms = List.generate(12, (index) =>
+                DateFormat.MMM('fr_FR').format(
+                    DateTime(tempPickedDate.year, index + 1)));
 
             return AlertDialog(
               backgroundColor: const Color(0xFF1E1E1E),
@@ -236,26 +448,20 @@ class _EcranBudgetState extends State<EcranBudget> {
                 children: <Widget>[
                   IconButton(
                     icon: const Icon(Icons.chevron_left, color: Colors.white),
-                    onPressed: () {
-                      stfSetState(() {
-                        tempPickedDate = DateTime(
-                            tempPickedDate.year - 1, tempPickedDate.month);
-                      });
-                    },
+                    onPressed: () =>
+                        stfSetState(() =>
+                        tempPickedDate = DateTime(tempPickedDate.year - 1,
+                            tempPickedDate.month)),
                   ),
-                  Text(
-                    DateFormat.y('fr_FR').format(tempPickedDate),
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
+                  Text(DateFormat.y('fr_FR').format(tempPickedDate),
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
                   IconButton(
                     icon: const Icon(Icons.chevron_right, color: Colors.white),
-                    onPressed: () {
-                      stfSetState(() {
-                        tempPickedDate = DateTime(
-                            tempPickedDate.year + 1, tempPickedDate.month);
-                      });
-                    },
+                    onPressed: () =>
+                        stfSetState(() =>
+                        tempPickedDate = DateTime(tempPickedDate.year + 1,
+                            tempPickedDate.month)),
                   ),
                 ],
               ),
@@ -267,7 +473,7 @@ class _EcranBudgetState extends State<EcranBudget> {
                   itemCount: moisNoms.length,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 4,
-                    childAspectRatio: 2,
+                    childAspectRatio: 1.8,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
                   ),
@@ -277,33 +483,49 @@ class _EcranBudgetState extends State<EcranBudget> {
                     bool isCurrentlySelectedOnScreen = moisDateTime.month ==
                         _moisAnneeCourant.month &&
                         moisDateTime.year == _moisAnneeCourant.year;
+                    bool isSelectedInPicker = moisDateTime.month ==
+                        tempPickedDate.month;
 
                     return ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isCurrentlySelectedOnScreen ? Theme
-                            .of(context)
-                            .primaryColor : const Color(0xFF333333),
+                        backgroundColor: isSelectedInPicker ? theme.colorScheme
+                            .primary : (isCurrentlySelectedOnScreen
+                            ? theme.colorScheme.secondary.withOpacity(0.5)
+                            : const Color(0xFF333333)),
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.zero,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       child: Text(
-                          moisNoms[index],
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: isCurrentlySelectedOnScreen ? FontWeight
-                                .bold : FontWeight.normal,
-                          )),
-                      onPressed: () {
-                        Navigator.pop(dialogContext,
-                            DateTime(tempPickedDate.year, index + 1, 1));
-                      },
+                        moisNoms[index],
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontWeight: isSelectedInPicker ||
+                            isCurrentlySelectedOnScreen
+                            ? FontWeight.bold
+                            : FontWeight.normal),
+                      ),
+                      onPressed: () =>
+                          Navigator.pop(dialogContext,
+                              DateTime(tempPickedDate.year, index + 1, 1)),
                     );
                   },
                 ),
               ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text(
+                      'ANNULER', style: TextStyle(color: Colors.white70)),
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+                TextButton(
+                  child: Text(
+                      'OK', style: TextStyle(color: theme.colorScheme.primary)),
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, DateTime(
+                      tempPickedDate.year, tempPickedDate.month, 1)),
+                ),
+              ],
             );
           },
         );
@@ -314,40 +536,52 @@ class _EcranBudgetState extends State<EcranBudget> {
   Widget _buildCustomAppBarTitle(ThemeData theme) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 25.0),
+      padding: const EdgeInsets.symmetric(horizontal: 0),
+      // Ajusté pour que Row prenne toute la largeur
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Bouton Mois Précédent (optionnel, si vous voulez toujours les flèches en dehors du picker)
+          // IconButton(icon: Icon(Icons.chevron_left, color: Colors.white), onPressed: _currentUser != null ? _moisPrecedent : null),
           Flexible(
             child: GestureDetector(
-              onTap: _handleDateTap,
+              onTap: _currentUser != null ? _handleDateTap : null,
               child: Container(
-                color: Colors.transparent, // Pour une meilleure zone de clic
-                padding: EdgeInsets.zero, // Ajustez si nécessaire
+                padding: const EdgeInsets.symmetric(
+                    vertical: 8.0, horizontal: 12.0),
+                // Ajusté pour un meilleur look
+                decoration: BoxDecoration(
+                  color: Colors.transparent, // Toujours transparent
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  // Pour que la Row ne prenne que la place nécessaire
+                  // Important pour centrer le texte et l'icône
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       DateFormat.yMMM('fr_FR').format(_moisAnneeCourant),
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: Colors.white,
                         fontSize: 18,
-                        // Taille de police légèrement réduite pour la propreté
                         fontWeight: FontWeight.bold,
-                      ) ??
-                          const TextStyle(color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold),
+                      ) ?? const TextStyle(color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                        Icons.arrow_drop_down, color: Colors.white, size: 24),
+                    if (_currentUser != null) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                          Icons.arrow_drop_down, color: Colors.white, size: 24),
+                    ]
                   ],
                 ),
               ),
             ),
           ),
+          // Bouton Mois Suivant (optionnel)
+          // IconButton(icon: Icon(Icons.chevron_right, color: Colors.white), onPressed: _currentUser != null ? _moisSuivant : null),
         ],
       ),
     );
@@ -355,31 +589,25 @@ class _EcranBudgetState extends State<EcranBudget> {
 
   List<Widget> _buildAppBarActions(ThemeData theme) {
     return [
+      if (_currentUser != null)
+        IconButton(
+          icon: const Icon(Icons.category_outlined, color: Colors.white),
+          tooltip: 'Gérer les catégories et enveloppes',
+          onPressed: _naviguerVersGestionCategories, // onPressed ne vérifie plus _currentUser car le bouton n'est affiché que si connecté
+        ),
       IconButton(
-        icon: const Icon(Icons.category_outlined, color: Colors.white),
-        tooltip: 'Gérer les catégories et enveloppes', // Ajout d'un tooltip
+        icon: const Icon(Icons.menu, color: Colors.white),
+        tooltip: _currentUser != null ? 'Menu principal' : 'Options',
         onPressed: () {
-          // Assurez-vous que le `context` est accessible ici.
-          // Si _buildAppBarActions est une méthode d'une classe State, `context` est une propriété.
-          Navigator.push(
-            context, // Utilisez le context de votre widget State
-            MaterialPageRoute(builder: (context) => const GestionCategoriesEnveloppesScreen()),
-          );
-          // Ou si vous utilisez des routes nommées:
-          // Navigator.pushNamed(context, GestionCategoriesEnveloppesScreen.routeName);
+          final scaffoldState = Scaffold.maybeOf(context);
+          if (scaffoldState?.hasEndDrawer ?? false) {
+            scaffoldState!.openEndDrawer();
+          } else {
+            print("Pas d'endDrawer défini.");
+            // TODO: Logique alternative si pas de drawer (ex: dialogue de connexion si non connecté)
+          }
         },
       ),
-      IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
-          onPressed: () {
-            /* TODO: Ouvrir un drawer ou menu principal */
-            Scaffold.of(context).openEndDrawer(); // Exemple si vous avez un endDrawer
-          }),
-      IconButton(
-          icon: const Icon(Icons.more_vert, color: Colors.white),
-          onPressed: () {
-            /* TODO: Options supplémentaires */
-          }),
     ];
   }
 
@@ -387,69 +615,61 @@ class _EcranBudgetState extends State<EcranBudget> {
     bool isOverAllocated = compte.soldeActuel < 0;
     double displayAmount = compte.soldeActuel.abs();
     String titleText = compte.nom.toUpperCase();
-    Color bannerColor = compte.couleur; // Utilisation de la couleur du compte
-    String subtitleText = isOverAllocated ? 'SUR-UTILISÉ' : 'DISPONIBLE';
+    Color bannerColor = compte
+        .couleur; // Assurez-vous que Compte a un champ `couleur` de type Color
+    String subtitleText = compte.soldeActuel < 0 ? 'DÉCOUVERT' : 'SOLDE ACTUEL';
+
+    Color textColor = ThemeData.estimateBrightnessForColor(bannerColor) ==
+        Brightness.dark
+        ? Colors.white
+        : Colors.black;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: bannerColor, // Appliquer la couleur du compte
+        color: bannerColor,
         borderRadius: BorderRadius.circular(8.0),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.2),
+              spreadRadius: 0,
+              blurRadius: 4,
+              offset: const Offset(0, 2)),
         ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          Expanded( // Pour s'assurer que le texte ne déborde pas si le nom du compte est long
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
                   titleText,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                  overflow: TextOverflow
-                      .ellipsis, // Gérer les textes trop longs
+                  style: theme.textTheme.labelLarge?.copyWith(color: textColor,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  subtitleText,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ),
+                Text(subtitleText, style: theme.textTheme.bodySmall?.copyWith(
+                    color: textColor.withOpacity(0.9))),
               ],
             ),
           ),
-          Row( // Pour garder l'icône et le montant ensemble
+          Row(
             children: [
               if (isOverAllocated)
                 Padding(
                   padding: const EdgeInsets.only(right: 8.0),
-                  child: Icon(
-                    Icons.warning_amber_rounded,
-                    color: Colors.white.withOpacity(0.9),
-                    // Couleur de l'icône d'avertissement
-                    size: 20,
-                  ),
+                  child: Icon(Icons.warning_amber_rounded,
+                      color: textColor.withOpacity(0.9), size: 20),
                 ),
               Text(
                 '${displayAmount.toStringAsFixed(2)} \$',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.titleLarge?.copyWith(color: textColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18),
               ),
             ],
           ),
@@ -457,6 +677,4 @@ class _EcranBudgetState extends State<EcranBudget> {
       ),
     );
   }
-// Les méthodes _buildCategoriesSection, _buildCategorieItem, _buildEnveloppeItem ont été déplacées
-// vers budget_categories_list.dart
 }

@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 // Enum TypeObjectif
 enum TypeObjectif { mensuel, dateFixe, aucun }
 
-// Helper pour convertir TypeObjectif en String et vice-versa (important pour Firestore)
 String typeObjectifToString(TypeObjectif type) {
   switch (type) {
     case TypeObjectif.mensuel:
@@ -30,7 +29,7 @@ TypeObjectif stringToTypeObjectif(String? typeStr) {
   }
 }
 
-class EnveloppeTestData {
+class EnveloppeUIData { // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI (par exemple EnveloppeUIData ou EnveloppeDisplayData)
   final String id;
   final String nom;
   final int? iconeCodePoint;
@@ -43,11 +42,11 @@ class EnveloppeTestData {
   final int couleurSoldeCompteValue;
   final int ordre;
 
-  // Valeurs par défaut constantes pour les couleurs
-  static const int _defaultCouleurThemeValue = 0xFF2196F3; // Équivalent à Colors.blue.shade500.value
-  static const int _defaultCouleurSoldeCompteValue = 0xFF9E9E9E; // Équivalent à Colors.grey.shade500.value
+  static const int _defaultCouleurThemeValue = 0xFF2196F3;
+  static const int _defaultCouleurSoldeCompteValue = 0xFF9E9E9E;
 
-  EnveloppeTestData({
+  // RENOMMEZ LE CONSTRUCTEUR
+  EnveloppeUIData({ // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI
     required this.id,
     required this.nom,
     this.iconeCodePoint,
@@ -61,16 +60,11 @@ class EnveloppeTestData {
     this.ordre = 0,
   });
 
-  // Propriétés calculées pour récupérer les objets Color et IconData originaux
   IconData? get icone =>
-      iconeCodePoint != null ? IconData(
-          iconeCodePoint!, fontFamily: 'MaterialIcons') : null;
-
+      iconeCodePoint != null ? IconData(iconeCodePoint!, fontFamily: 'MaterialIcons') : null;
   Color get couleurTheme => Color(couleurThemeValue);
-
   Color get couleurSoldeCompte => Color(couleurSoldeCompteValue);
 
-  // Méthode pour convertir un objet EnveloppeTestData en Map pour Firestore
   Map<String, dynamic> toMap() {
     return {
       'id': id, // Assurez-vous que l'ID EST SAUVEGARDÉ DANS LA MAP
@@ -88,10 +82,11 @@ class EnveloppeTestData {
   }
 
   // Votre fromFirestore existant
-  factory EnveloppeTestData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory EnveloppeUIData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) { // <<<<<<<<<< CHANGEMENT
     Map<String, dynamic> data = doc.data()!;
-    return EnveloppeTestData(
-      id: doc.id, // ID vient du DocumentSnapshot
+    // RENOMMEZ L'APPEL AU CONSTRUCTEUR
+    return EnveloppeUIData( // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI
+      id: doc.id,
       nom: data['nom'] as String? ?? '',
       iconeCodePoint: data['iconeCodePoint'] as int?,
       soldeActuel: (data['soldeActuel'] as num?)?.toDouble() ?? 0.0,
@@ -105,22 +100,18 @@ class EnveloppeTestData {
     );
   }
 
-  // **** NOUVELLE MÉTHODE À AJOUTER ****
-  factory EnveloppeTestData.fromMap(Map<String, dynamic> map) {
-    return EnveloppeTestData(
-      // L'ID doit être dans la map elle-même, car nous n'avons pas de DocumentSnapshot ici
-      id: map['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(), // Fournir un fallback pour l'ID si manquant
+  // RENOMMEZ CE FACTORY CONSTRUCTOR
+  factory EnveloppeUIData.fromMap(Map<String, dynamic> map) { // <<<<<<<<<<<<<<< CHANGEMENT
+    // RENOMMEZ L'APPEL AU CONSTRUCTEUR
+    return EnveloppeUIData( // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI
+      id: map['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
       nom: map['nom'] as String? ?? '',
       iconeCodePoint: map['iconeCodePoint'] as int?,
       soldeActuel: (map['soldeActuel'] as num?)?.toDouble() ?? 0.0,
       montantAlloue: (map['montantAlloue'] as num?)?.toDouble() ?? 0.0,
       typeObjectif: stringToTypeObjectif(map['typeObjectif'] as String?),
       montantCible: (map['montantCible'] as num?)?.toDouble(),
-      // Adaptez la gestion de la date si vous stockez différemment dans la map imbriquée
-      // Si c'est un Timestamp dans la map imbriquée :
       dateCible: (map['dateCible'] as Timestamp?)?.toDate(),
-      // Si c'est une String ISO dans la map imbriquée :
-      // dateCible: map['dateCible'] != null ? DateTime.parse(map['dateCible'] as String) : null,
       couleurThemeValue: map['couleurThemeValue'] as int? ?? _defaultCouleurThemeValue,
       couleurSoldeCompteValue: map['couleurSoldeCompteValue'] as int? ?? _defaultCouleurSoldeCompteValue,
       ordre: map['ordre'] as int? ?? 0,
@@ -129,7 +120,8 @@ class EnveloppeTestData {
 }
 
 class EnveloppeCard extends StatelessWidget {
-  final EnveloppeTestData enveloppe;
+  // METTEZ À JOUR LE TYPE DU PARAMÈTRE
+  final EnveloppeUIData enveloppe; // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI
 
   const EnveloppeCard({Key? key, required this.enveloppe}) : super(key: key);
 

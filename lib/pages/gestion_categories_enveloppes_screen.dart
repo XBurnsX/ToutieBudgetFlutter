@@ -3,18 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // NOUVEL IMPORT
 
-// ASSUREZ-VOUS QUE CE CHEMIN EST CORRECT ET QUE EnveloppeTestData a toMap et fromMap
-// import '../widgets/EnveloppeCard.dart'; // Ou là où EnveloppeTestData est définie
-// import '../models/enveloppe_test_data.dart'; // Si vous l'avez dans un dossier models
-
-// Enum TypeObjectif (si pas déjà importé avec EnveloppeTestData)
 enum TypeObjectif {
   aucun,
   mensuel,
   dateFixe
-} // Assurez-vous que c'est le bon enum
+}
 
-// --- Définition des classes Categorie et EnveloppeTestData ---
 class Categorie {
   String id;
   String nom;
