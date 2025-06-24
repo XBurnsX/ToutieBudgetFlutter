@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'ecran_ajout_transaction.dart';
-import 'ecran_creation_compte.dart.dart';
+import 'ecran_creation_compte.dart';
 import 'ecran_liste_comptes.dart';
 import 'ecran_budget.dart';
 

@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/enveloppe_model.dart';         // <--- NOUVEL IMPORT
+import '../models/categorie_budget_model.dart'; // <--- NOUVEL IMPORT
 
 class CategorieBudgetModel {
   final String id;
