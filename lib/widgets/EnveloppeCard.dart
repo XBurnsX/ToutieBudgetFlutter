@@ -1,27 +1,29 @@
-import 'package:cloud_firestore/cloud_firestore.dart'; // NÉCESSAIRE pour Timestamp
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-// Enum TypeObjectif
-enum TypeObjectif { mensuel, dateFixe, aucun }
+// IMPORTANT: L'import pour TypeObjectif depuis sa source de vérité
+import 'package:toutie_budget/pages/gestion_categories_enveloppes_screen.dart' show TypeObjectif;
 
+// La fonction d'aide est définie ici, au niveau supérieur (en dehors de toute classe)
 String typeObjectifToString(TypeObjectif type) {
   switch (type) {
     case TypeObjectif.mensuel:
       return 'mensuel';
     case TypeObjectif.dateFixe:
-      return 'dateFixe';
+      return 'dateFixe'; // Assurez-vous que c'est bien la chaîne que vous stockez/lisez
     case TypeObjectif.aucun:
     default:
       return 'aucun';
   }
 }
 
-TypeObjectif stringToTypeObjectif(String? typeStr) {
-  switch (typeStr) {
+// La fonction de conversion est définie ici, au niveau supérieur
+TypeObjectif stringToTypeObjectif(String? value) {
+  switch (value?.toLowerCase()) {
     case 'mensuel':
       return TypeObjectif.mensuel;
-    case 'dateFixe':
+    case 'datefixe': // Soyez cohérent avec ce qui est dans typeObjectifToString et dans Firestore
       return TypeObjectif.dateFixe;
     case 'aucun':
     default:
@@ -29,13 +31,13 @@ TypeObjectif stringToTypeObjectif(String? typeStr) {
   }
 }
 
-class EnveloppeUIData { // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI (par exemple EnveloppeUIData ou EnveloppeDisplayData)
+class EnveloppeUIData {
   final String id;
   final String nom;
   final int? iconeCodePoint;
   final double soldeActuel;
   final double montantAlloue;
-  final TypeObjectif typeObjectif;
+  final TypeObjectif typeObjectif; // Doit utiliser le TypeObjectif importé
   final double? montantCible;
   final DateTime? dateCible;
   final int couleurThemeValue;
@@ -45,14 +47,13 @@ class EnveloppeUIData { // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI (par exemple En
   static const int _defaultCouleurThemeValue = 0xFF2196F3;
   static const int _defaultCouleurSoldeCompteValue = 0xFF9E9E9E;
 
-  // RENOMMEZ LE CONSTRUCTEUR
-  EnveloppeUIData({ // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI
+  EnveloppeUIData({
     required this.id,
     required this.nom,
     this.iconeCodePoint,
     required this.soldeActuel,
     required this.montantAlloue,
-    this.typeObjectif = TypeObjectif.aucun,
+    required this.typeObjectif, // Assurez-vous que le paramètre est bien TypeObjectif
     this.montantCible,
     this.dateCible,
     this.couleurThemeValue = _defaultCouleurThemeValue,
@@ -67,12 +68,12 @@ class EnveloppeUIData { // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI (par exemple En
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id, // Assurez-vous que l'ID EST SAUVEGARDÉ DANS LA MAP
+      'id': id,
       'nom': nom,
       'iconeCodePoint': iconeCodePoint,
       'soldeActuel': soldeActuel,
       'montantAlloue': montantAlloue,
-      'typeObjectif': typeObjectifToString(typeObjectif),
+      'typeObjectif': typeObjectifToString(typeObjectif), // Utilise la fonction globale
       'montantCible': montantCible,
       'dateCible': dateCible != null ? Timestamp.fromDate(dateCible!) : null,
       'couleurThemeValue': couleurThemeValue,
@@ -81,17 +82,15 @@ class EnveloppeUIData { // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI (par exemple En
     };
   }
 
-  // Votre fromFirestore existant
-  factory EnveloppeUIData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) { // <<<<<<<<<< CHANGEMENT
+  factory EnveloppeUIData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     Map<String, dynamic> data = doc.data()!;
-    // RENOMMEZ L'APPEL AU CONSTRUCTEUR
-    return EnveloppeUIData( // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI
+    return EnveloppeUIData(
       id: doc.id,
       nom: data['nom'] as String? ?? '',
       iconeCodePoint: data['iconeCodePoint'] as int?,
       soldeActuel: (data['soldeActuel'] as num?)?.toDouble() ?? 0.0,
       montantAlloue: (data['montantAlloue'] as num?)?.toDouble() ?? 0.0,
-      typeObjectif: stringToTypeObjectif(data['typeObjectif'] as String?),
+      typeObjectif: stringToTypeObjectif(data['typeObjectif'] as String?), // APPEL CORRECT
       montantCible: (data['montantCible'] as num?)?.toDouble(),
       dateCible: (data['dateCible'] as Timestamp?)?.toDate(),
       couleurThemeValue: data['couleurThemeValue'] as int? ?? _defaultCouleurThemeValue,
@@ -100,16 +99,14 @@ class EnveloppeUIData { // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI (par exemple En
     );
   }
 
-  // RENOMMEZ CE FACTORY CONSTRUCTOR
-  factory EnveloppeUIData.fromMap(Map<String, dynamic> map) { // <<<<<<<<<<<<<<< CHANGEMENT
-    // RENOMMEZ L'APPEL AU CONSTRUCTEUR
-    return EnveloppeUIData( // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI
+  factory EnveloppeUIData.fromMap(Map<String, dynamic> map) {
+    return EnveloppeUIData(
       id: map['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
       nom: map['nom'] as String? ?? '',
       iconeCodePoint: map['iconeCodePoint'] as int?,
       soldeActuel: (map['soldeActuel'] as num?)?.toDouble() ?? 0.0,
       montantAlloue: (map['montantAlloue'] as num?)?.toDouble() ?? 0.0,
-      typeObjectif: stringToTypeObjectif(map['typeObjectif'] as String?),
+      typeObjectif: stringToTypeObjectif(map['typeObjectif'] as String?), // APPEL CORRECT
       montantCible: (map['montantCible'] as num?)?.toDouble(),
       dateCible: (map['dateCible'] as Timestamp?)?.toDate(),
       couleurThemeValue: map['couleurThemeValue'] as int? ?? _defaultCouleurThemeValue,
@@ -120,16 +117,19 @@ class EnveloppeUIData { // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI (par exemple En
 }
 
 class EnveloppeCard extends StatelessWidget {
-  // METTEZ À JOUR LE TYPE DU PARAMÈTRE
-  final EnveloppeUIData enveloppe; // <<<<<<<<<<<<<<< CHANGEMENT DE NOM ICI
+  final EnveloppeUIData enveloppe;
+  final VoidCallback? onTap; // <--- NOUVEAU PARAMÈTRE
 
-  const EnveloppeCard({Key? key, required this.enveloppe}) : super(key: key);
+  const EnveloppeCard({
+    Key? key,
+    required this.enveloppe,
+    this.onTap, // <--- AJOUTEZ-LE AU CONSTRUCTEUR
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currencyFormatter = NumberFormat.currency(
-        locale: 'fr_CA', symbol: '\$');
+    final currencyFormatter = NumberFormat.currency(locale: 'fr_CA', symbol: '\$');
 
     // Détermination des couleurs pour la bulle de solde
     Color couleurFondBulleSolde;

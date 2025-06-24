@@ -2,10 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:toutie_budget/models/categorie_budget_model.dart';
 import 'package:toutie_budget/models/compte_model.dart';
-import 'package:toutie_budget/pages/ecran_budget.dart'
-    show EnveloppePourAffichageBudget;
+
+// Assurez-vous que EnveloppePourAffichageBudget est importé (s'il vient d'un fichier séparé)
+// et qu'il N'A PLUS messageSous
+// import 'package:toutie_budget/pages/ecran_budget.dart' show EnveloppePourAffichageBudget;
 import 'package:toutie_budget/pages/gestion_categories_enveloppes_screen.dart'
-    show GestionCategoriesEnveloppesScreen;
+    show GestionCategoriesEnveloppesScreen; // Pour la navigation par défaut
+
+// IMPORTS POUR ENVELOPPECARD
+import 'package:toutie_budget/widgets/EnveloppeCard.dart'; // Ajustez le chemin
+// Si TypeObjectif vient d'ailleurs et est nécessaire pour EnveloppeUIData (mais normalement EnveloppeCard gère son import)
+// import 'package:toutie_budget/pages/gestion_categories_enveloppes_screen.dart' show TypeObjectif;
+
 
 class BudgetCategoriesList extends StatefulWidget {
   final List<CategorieBudgetModel> categories;
@@ -28,29 +36,8 @@ class BudgetCategoriesList extends StatefulWidget {
 }
 
 class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
-  // Map<String, bool> _etatsDepliageCategories = {}; // PLUS NÉCESSAIRE
   final currencyFormatter = NumberFormat.currency(
       locale: 'fr_CA', symbol: '\$');
-
-  @override
-  void initState() {
-    super.initState();
-    // _initialiserEtatsDepliage(); // PLUS NÉCESSAIRE
-  }
-
-  @override
-  void didUpdateWidget(covariant BudgetCategoriesList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // La logique de _initialiserEtatsDepliage n'est plus nécessaire si on ne déplie/replie plus
-    // if (widget.categories.length != oldWidget.categories.length ||
-    //     !widget.categories.every((cat) =>
-    //         oldWidget.categories.any((oldCat) => oldCat.id == cat.id)) ||
-    //     widget.moisAnneeCourant != oldWidget.moisAnneeCourant) {
-    //   _initialiserEtatsDepliage();
-    // }
-  }
-
-  // void _initialiserEtatsDepliage() { ... } // MÉTHODE PLUS NÉCESSAIRE
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +100,6 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
     required String buttonLabel,
     VoidCallback? onButtonPressed,
   }) {
-    // ... (aucun changement ici)
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40.0),
       child: Center(
@@ -158,23 +144,21 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
     );
   }
 
-  // MODIFICATIONS APPLIQUÉES ICI
   Widget _buildCategorieItem(ThemeData theme, CategorieBudgetModel categorie) {
-    // bool estDeplie = _etatsDepliageCategories[categorie.id] ?? false; // PLUS NÉCESSAIRE
-
     Color couleurTexteDisponible = categorie.disponibleTotal >= 0
         ? (theme.brightness == Brightness.dark
         ? Colors.greenAccent[100]!
         : Colors.green[700]!)
-        : (theme.brightness == Brightness.dark ? Colors.redAccent[100]! : Colors
-        .red[700]!);
+        : (theme.brightness == Brightness.dark
+        ? Colors.redAccent[100]!
+        : Colors.red[700]!);
 
-    return Column( // Garde le Column pour le Divider
+    return Column(
       children: [
-        Container( // Ce Container est l'en-tête de la catégorie
+        Container(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          color: Colors.black,
-          child: Row( // L'en-tête est maintenant une simple Row
+          color: Colors.black, // Couleur d'en-tête de catégorie
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -209,64 +193,87 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
                   ),
                 ],
               ),
-              // L'icône de flèche pour déplier/replier est supprimée
-              // const SizedBox(width: 8),
-              // Icon( ... ),
             ],
           ),
         ),
-        // Les enveloppes sont maintenant toujours affichées
         Container(
           color: Colors.grey[900], // Fond pour la section des enveloppes
           child: Column(
-            children: categorie.enveloppes.map((enveloppeAffichee) {
-              return _buildEnveloppeItem(
-                  theme, enveloppeAffichee, enveloppeAffichee.couleur);
+            children: categorie.enveloppes
+                .asMap()
+                .entries
+                .map((entry) {
+              int idx = entry.key;
+              EnveloppePourAffichageBudget enveloppeVM = entry.value;
+
+              // Créer l'objet EnveloppeUIData à partir de EnveloppePourAffichageBudget
+              // Assurez-vous que EnveloppePourAffichageBudget a bien typeObjectif, montantCible, dateCible, ordre
+              // et N'A PLUS messageSous
+              final EnveloppeUIData uiData = EnveloppeUIData(
+                id: enveloppeVM.id,
+                nom: enveloppeVM.nom,
+                iconeCodePoint: enveloppeVM.icone?.codePoint,
+                soldeActuel: enveloppeVM.disponible,
+                montantAlloue: enveloppeVM.montantAlloue,
+                typeObjectif: enveloppeVM.typeObjectif,
+                // CHAMP IMPORTANT
+                montantCible: enveloppeVM.montantCible,
+                // CHAMP IMPORTANT
+                dateCible: enveloppeVM.dateCible,
+                // CHAMP IMPORTANT
+                couleurThemeValue: enveloppeVM.couleur.value,
+                // Si vous avez un champ distinct pour couleurSoldeCompte dans EnveloppePourAffichageBudget, utilisez-le
+                // sinon, décidez d'une valeur par défaut ou utilisez la même que couleurThemeValue
+                couleurSoldeCompteValue: enveloppeVM.couleur.value,
+                // Exemple: utiliser la même
+                ordre: enveloppeVM.ordre ?? idx,
+                // 'depense' n'est pas directement passé à EnveloppeUIData.
+                // EnveloppeCard calcule ce dont il a besoin (comme le progrès)
+                // à partir de soldeActuel et montantAlloue, ou vous pourriez ajouter
+                // un champ 'depense' à EnveloppeUIData si EnveloppeCard en a besoin explicitement.
+              );
+
+              return EnveloppeCard(
+                enveloppe: uiData,
+                onTap: () {
+                  print('Enveloppe ${uiData.nom} (ID: ${uiData
+                      .id}) cliquée (via EnveloppeCard)');
+                  // TODO: Implémenter la navigation ou l'action au clic sur l'enveloppe
+                },
+                // Si vous voulez un Divider entre chaque carte, vous pouvez l'ajouter ici
+                // ou gérer le padding/margin dans EnveloppeCard lui-même.
+                // Exemple :
+                // child: Column(children: [ EnveloppeCard(...), if (idx < categorie.enveloppes.length -1) Divider() ])
+              );
             }).toList(),
           ),
         ),
         Divider(height: 1, color: Colors.grey[700]),
+        // Séparateur entre les catégories
       ],
     );
   }
 
+// CETTE MÉTHODE EST MAINTENANT OBSOLÈTE ET DEVRAIT ÊTRE SUPPRIMÉE OU COMPLÈTEMENT COMMENTÉE
+/*
   Widget _buildEnveloppeItem(ThemeData theme,
-      EnveloppePourAffichageBudget enveloppe,
+      EnveloppePourAffichageBudget enveloppe, // <<--- 'enveloppe' ici est le type qui n'a plus 'messageSous'
       Color couleurDeBasePourEnveloppe) {
-    // ... (aucun changement dans _buildEnveloppeItem)
-    double progression = 0;
-    if (enveloppe.montantAlloue > 0) {
-      progression = (enveloppe.depense / enveloppe.montantAlloue);
-    }
-    progression = progression.clamp(0.0, 1.0);
+    // ... (ancienne logique de calcul de progression etc.)
 
-    Color couleurBarreEtTexteDisponibleEnveloppe = couleurDeBasePourEnveloppe;
+    // L'ERREUR VIENT DE LA LIGNE SUIVANTE DANS VOTRE CODE PARTAGÉ:
+    // if (enveloppe.messageSous != null &&
+    // enveloppe.messageSous!.isNotEmpty) ...[
 
-    if (enveloppe.disponible < 0) {
-      couleurBarreEtTexteDisponibleEnveloppe = Colors.redAccent[100]!;
-    } else if (progression == 1.0 && enveloppe.disponible == 0) {
-      couleurBarreEtTexteDisponibleEnveloppe =
-          HSLColor.fromColor(couleurDeBasePourEnveloppe)
-              .withSaturation(0.5)
-              .withLightness(HSLColor
-              .fromColor(couleurDeBasePourEnveloppe)
-              .lightness * 0.7)
-              .toColor();
-    } else if (progression > 0.85) {
-      couleurBarreEtTexteDisponibleEnveloppe =
-          HSLColor.fromColor(couleurDeBasePourEnveloppe)
-              .withLightness((HSLColor
-              .fromColor(couleurDeBasePourEnveloppe)
-              .lightness * 0.85).clamp(0.0, 1.0))
-              .toColor();
-    }
+    // TOUT LE CONTENU DE CETTE MÉTHODE DEVRAIT ÊTRE SUPPRIMÉ
+    // PUISQUE EnveloppeCard FAIT LE TRAVAIL
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
           print('Enveloppe ${enveloppe
-              .nom} cliquée (depuis BudgetCategoriesList)');
+              .nom} cliquée (depuis BudgetCategoriesList - ANCIENNE METHODE)');
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -274,60 +281,25 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  if (enveloppe.icone != null) ...[
-                    Icon(enveloppe.icone,
-                        color: HSLColor
-                            .fromColor(couleurDeBasePourEnveloppe)
-                            .withAlpha(220)
-                            .toColor(),
-                        size: 20),
-                    const SizedBox(width: 12),
-                  ],
-                  Expanded(
-                    child: Text(
-                      enveloppe.nom,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(
-                          color: Colors.white, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    currencyFormatter.format(enveloppe.disponible),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                        color: couleurBarreEtTexteDisponibleEnveloppe,
-                        fontWeight: FontWeight.w600
-                    ),
-                  ),
-                ],
+                // ... ancienne Row ...
               ),
-              if (enveloppe.messageSous != null &&
-                  enveloppe.messageSous!.isNotEmpty) ...[
-                const SizedBox(height: 5),
-                Padding(
-                  padding: EdgeInsets.only(
-                      left: enveloppe.icone != null ? 32 : 0),
-                  child: Text(
-                    enveloppe.messageSous!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.grey[400], fontSize: 11.5),
-                  ),
-                ),
-              ],
+              // LE BLOC QUI CAUSE L'ERREUR :
+              // if (enveloppe.messageSous != null &&
+              //     enveloppe.messageSous!.isNotEmpty) ...[
+              //   const SizedBox(height: 5),
+              //   Padding(
+              //     padding: EdgeInsets.only(
+              //         left: enveloppe.icone != null ? 32 : 0),
+              //     child: Text(
+              //       enveloppe.messageSous!, // <--- ICI EST L'ACCÈS AU CHAMP INEXISTANT
+              //       style: theme.textTheme.bodySmall
+              //           ?.copyWith(color: Colors.grey[400], fontSize: 11.5),
+              //     ),
+              //   ),
+              // ],
               const SizedBox(height: 7),
               Padding(
-                padding: EdgeInsets.only(
-                    left: enveloppe.icone != null ? 32 : 0),
-                child: LinearProgressIndicator(
-                  value: progression,
-                  backgroundColor: couleurDeBasePourEnveloppe.withOpacity(0.20),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      couleurBarreEtTexteDisponibleEnveloppe),
-                  minHeight: 5,
-                  borderRadius: BorderRadius.circular(2.5),
-                ),
+                // ... ancien LinearProgressIndicator ...
               ),
             ],
           ),
@@ -335,4 +307,5 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
       ),
     );
   }
+  */
 }

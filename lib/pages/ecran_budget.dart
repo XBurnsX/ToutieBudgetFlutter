@@ -129,7 +129,6 @@ class _EcranBudgetState extends State<EcranBudget> {
       depense: depense,       // Calculé comme alloue - soldeActuel
       couleur: Color(enveloppeSource.couleurThemeValue!), // Assurez-vous que couleurThemeValue n'est jamais null
       icone: enveloppeSource.iconeCodePoint != null ? IconData(enveloppeSource.iconeCodePoint!, fontFamily: 'MaterialIcons') : null,
-      messageSous: messageSous,
     );
   }
 
