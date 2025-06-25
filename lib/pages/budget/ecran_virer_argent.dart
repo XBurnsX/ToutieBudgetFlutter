@@ -77,36 +77,83 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
     }
   }
 
+
+
+  // ***** DÉFINITION DE LA MÉTHODE MANQUANTE *****
   Future<void> _chargerDonneesInitialesAvecAffichage() async {
     print("[EcranVirerArgent - _chargerDonneesInitialesAvecAffichage] Début.");
     if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    await _chargerDonneesInitiales();
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-    print("[EcranVirerArgent - _chargerDonneesInitialesAvecAffichage] Fin.");
-  }
-  Future<void> _chargerDonneesInitiales() async {
-    print("[EcranVirerArgent - _chargerDonneesInitiales] Début du chargement des données réelles.");
-
-    if (_currentUser == null) {
-      print("[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: _currentUser est null.");
+    try {
+      await _chargerDonneesInitiales();
+    } catch (e) {
+      print("[EcranVirerArgent - _chargerDonneesInitialesAvecAffichage] ERREUR lors de l'appel à _chargerDonneesInitiales: $e");
       if (mounted) {
         setState(() {
-          _errorMessage = "Utilisateur non authentifié. Impossible de charger les données.";
+          if (_errorMessage == null) { // Seulement si _chargerDonneesInitiales n'a pas défini de message
+            _errorMessage = "Une erreur est survenue lors du rechargement.";
+          }
+          // Assurer que _isLoading est remis à false même si _chargerDonneesInitiales
+          // a une erreur avant son propre finally (peu probable mais sécuritaire)
+          _isLoading = false;
+        });
+      }
+    }
+    // Le `finally` de `_chargerDonneesInitiales` est celui qui remettra `_isLoading` à `false`
+    // lors d'une exécution normale. Ce wrapper s'assure juste que l'UI est informée du début.
+    print("[EcranVirerArgent - _chargerDonneesInitialesAvecAffichage] Fin.");
+  }
+
+  // N'oubliez pas de définir également _mettreAJourSelectionsInitiales si elle n'existe pas
+  void _mettreAJourSelectionsInitiales() {
+    print("[EcranVirerArgent - _mettreAJourSelectionsInitiales] Début.");
+    // ... (votre logique pour _mettreAJourSelectionsInitiales comme discuté précédemment) ...
+    if (_tousLesItemsSelectionnables.isNotEmpty) {
+      _selectionSource = _tousLesItemsSelectionnables.firstWhere(
+            (item) => item.estPretAPlacer,
+        orElse: () => _tousLesItemsSelectionnables.first,
+      );
+      try {
+        _selectionDestination = _tousLesItemsSelectionnables.firstWhere(
+              (item) => item.id != _selectionSource!.id,
+        );
+      } catch (e) {
+        _selectionDestination = null;
+      }
+    } else {
+      _selectionSource = null;
+      _selectionDestination = null;
+    }
+    _valeurClavier = "0";
+    if(mounted) _montantController.text = _valeurClavier;
+    _montantATransferer = 0.0;
+    print("[EcranVirerArgent - _mettreAJourSelectionsInitiales] Fin. Source: ${_selectionSource?.nom}, Dest: ${_selectionDestination?.nom}");
+  }
+  Future<void> _chargerDonneesInitiales() async {
+    print(
+        "[EcranVirerArgent - _chargerDonneesInitiales] Début du chargement des données réelles.");
+
+    if (_currentUser == null) {
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR: _currentUser est null.");
+      if (mounted) {
+        setState(() {
+          _errorMessage =
+          "Utilisateur non authentifié. Impossible de charger les données.";
+          _isLoading =
+          false; // Important: arrêter le chargement en cas d'erreur ici
         });
       }
       return;
     }
-    print("[EcranVirerArgent - _chargerDonneesInitiales] Utilisateur UID: ${_currentUser!.uid}");
+    print(
+        "[EcranVirerArgent - _chargerDonneesInitiales] Utilisateur UID: ${_currentUser!
+            .uid}");
 
     try {
       List<ItemDeSelectionTransfert> itemsTemp = [];
@@ -114,84 +161,116 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
       _mapEnveloppeIdACategorieId.clear();
 
       // 1. Charger tous les comptes bancaires de l'utilisateur
-      print("[EcranVirerArgent - _chargerDonneesInitiales] Chargement des comptes bancaires...");
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Chargement des comptes bancaires...");
       final comptesSnapshot = await _firestore
           .collection('users')
           .doc(_currentUser!.uid)
           .collection('comptes')
           .get();
-      print("[EcranVirerArgent - _chargerDonneesInitiales] Nombre de documents de comptes récupérés: ${comptesSnapshot.docs.length}");
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Nombre de documents de comptes récupérés: ${comptesSnapshot
+              .docs.length}");
 
       List<CompteBancaireModel> tousLesComptes = comptesSnapshot.docs
           .map((doc) {
-        print("[EcranVirerArgent - _chargerDonneesInitiales] Parsing Compte ID: ${doc.id}, Data: ${doc.data()}");
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] Parsing Compte ID: ${doc
+                .id}, Data: ${doc.data()}");
         try {
           return CompteBancaireModel.fromFirestore(doc);
-        } catch (e,s) {
-          print("[EcranVirerArgent - _chargerDonneesInitiales] ERREUR PARSING COMPTE ID '${doc.id}': $e\nStackTrace: $s");
-          return null; // Retourner null si le parsing échoue pour un compte
+        } catch (e, s) {
+          print(
+              "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR PARSING COMPTE ID '${doc
+                  .id}': $e\nStackTrace: $s");
+          return null;
         }
       })
-          .where((compte) => compte != null) // Filtrer les comptes qui ont échoué au parsing
-          .cast<CompteBancaireModel>() // S'assurer du bon type après le filtrage
+          .whereType<
+          CompteBancaireModel>() // Filtre les nulls et assure le type
           .toList();
-      print("[EcranVirerArgent - _chargerDonneesInitiales] Nombre de CompteBancaireModel chargés: ${tousLesComptes.length}");
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Nombre de CompteBancaireModel chargés: ${tousLesComptes
+              .length}");
       for (var compte in tousLesComptes) {
-        print("  > Compte chargé: ${compte.nom}, ID: ${compte.id}, SoldeInitial: ${compte.soldeInitial}");
+        print(
+            "  > Compte chargé: ${compte.nom}, ID: ${compte
+                .id}, SoldeInitial: ${compte.soldeInitial}");
       }
 
       // 2. Charger toutes les enveloppes (de toutes les catégories)
-      print("[EcranVirerArgent - _chargerDonneesInitiales] Chargement des enveloppes...");
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Chargement des enveloppes...");
       List<EnveloppeModel> toutesLesEnveloppes = [];
       final categoriesSnapshot = await _firestore
           .collection('users')
           .doc(_currentUser!.uid)
           .collection('categories')
           .get();
-      print("[EcranVirerArgent - _chargerDonneesInitiales] Nombre de catégories récupérées: ${categoriesSnapshot.docs.length}");
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Nombre de catégories récupérées: ${categoriesSnapshot
+              .docs.length}");
 
       for (QueryDocumentSnapshot catDoc in categoriesSnapshot.docs) {
-        print("[EcranVirerArgent - _chargerDonneesInitiales] Chargement des enveloppes pour catégorie ID: ${catDoc.id}");
-        final enveloppesSnapshot = await catDoc.reference
-            .collection('enveloppes')
-            .orderBy('nom')
-            .get();
-        print("  > Nombre d'enveloppes récupérées pour catégorie ${catDoc.id}: ${enveloppesSnapshot.docs.length}");
-        for (QueryDocumentSnapshot<Map<String, dynamic>> envDoc in enveloppesSnapshot.docs) {
-          print("  > Parsing Enveloppe ID: ${envDoc.id}, Data: ${envDoc.data()}");
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] Chargement des enveloppes pour catégorie ID: ${catDoc
+                .id}");
+        final enveloppesSnapshot =
+        await catDoc.reference.collection('enveloppes').orderBy('nom').get();
+        print(
+            "  > Nombre d'enveloppes récupérées pour catégorie ${catDoc
+                .id}: ${enveloppesSnapshot.docs.length}");
+        for (QueryDocumentSnapshot<Map<String, dynamic>> envDoc
+        in enveloppesSnapshot.docs) {
+          print(
+              "  > Parsing Enveloppe ID: ${envDoc.id}, Data: ${envDoc.data()}");
           try {
             EnveloppeModel env = EnveloppeModel.fromSnapshot(envDoc);
             toutesLesEnveloppes.add(env);
             _mapEnveloppesChargees[env.id] = env;
             _mapEnveloppeIdACategorieId[env.id] = catDoc.id;
           } catch (e, s) {
-            print("[EcranVirerArgent - _chargerDonneesInitiales] ERREUR PARSING ENVELOPPE ID '${envDoc.id}': $e\nStackTrace: $s");
+            print(
+                "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR PARSING ENVELOPPE ID '${envDoc
+                    .id}': $e\nStackTrace: $s");
           }
         }
       }
-      print("[EcranVirerArgent - _chargerDonneesInitiales] Nombre total d'EnveloppeModel chargées: ${toutesLesEnveloppes.length}");
-      for (var env in toutesLesEnveloppes) {
-      }
-
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Nombre total d'EnveloppeModel chargées: ${toutesLesEnveloppes
+              .length}");
 
       // 3. Calculer "Prêt à placer" pour chaque compte
-      print("[EcranVirerArgent - _chargerDonneesInitiales] Calcul des 'Prêt à placer'...");
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Calcul des 'Prêt à placer'...");
       for (CompteBancaireModel compte in tousLesComptes) {
-        print("  > Calcul PAP pour compte: ${compte.nom} (ID: ${compte.id}), SoldeInitial: ${compte.soldeInitial}");
+        print(
+            "  > Calcul PAP pour compte: ${compte.nom} (ID: ${compte
+                .id}), SoldeInitial: ${compte.soldeInitial}");
         double totalAlloueAuxEnveloppesPourCeCompte = 0;
         for (EnveloppeModel env in toutesLesEnveloppes) {
-          if (env.compteSourceAttacheId == compte.id) { // <--- CORRECTED
+          if (env.compteSourceAttacheId == compte.id) {
             totalAlloueAuxEnveloppesPourCeCompte += env.soldeEnveloppe;
-            print("    >> Enveloppe '${env.nom}' (Montant: ${env.soldeEnveloppe}, compteSourceId: ${env.compteSourceAttacheId}) est liée au compte ${compte.id}.");
+            print(
+                "    >> Enveloppe '${env.nom}' (Montant: ${env
+                    .soldeEnveloppe}, compteSourceId: ${env
+                    .compteSourceAttacheId}) est liée au compte ${compte.id}.");
           }
         }
-        print("  > Total alloué aux enveloppes pour compte '${compte.nom}': $totalAlloueAuxEnveloppesPourCeCompte");
+        print(
+            "  > Total alloué aux enveloppes pour compte '${compte
+                .nom}': $totalAlloueAuxEnveloppesPourCeCompte");
         double soldeBrutDuCompte = compte.soldeInitial;
-        double soldePretAPlacerDuCompte = soldeBrutDuCompte - totalAlloueAuxEnveloppesPourCeCompte;
-        print("  > Solde 'Prêt à placer' calculé pour compte '${compte.nom}': $soldePretAPlacerDuCompte");
+        double soldePretAPlacerDuCompte =
+            soldeBrutDuCompte - totalAlloueAuxEnveloppesPourCeCompte;
+        print(
+            "  > Solde 'Prêt à placer' calculé pour compte '${compte
+                .nom}': $soldePretAPlacerDuCompte");
 
         if (soldePretAPlacerDuCompte < 0) {
-          print("  ATTENTION: Solde PAP négatif ($soldePretAPlacerDuCompte) pour compte '${compte.nom}'. Sera mis à 0.");
+          print(
+              "  ATTENTION: Solde PAP négatif ($soldePretAPlacerDuCompte) pour compte '${compte
+                  .nom}'. Sera mis à 0.");
         }
 
         itemsTemp.add(ItemDeSelectionTransfert(
@@ -203,7 +282,8 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
       }
 
       // 4. Ajouter les enveloppes elles-mêmes
-      print("[EcranVirerArgent - _chargerDonneesInitiales] Ajout des enveloppes comme items de sélection...");
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] Ajout des enveloppes comme items de sélection...");
       for (EnveloppeModel env in toutesLesEnveloppes) {
         itemsTemp.add(ItemDeSelectionTransfert(
           id: env.id,
@@ -211,78 +291,94 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
           solde: env.soldeEnveloppe,
           estPretAPlacer: false,
         ));
-        print("  > Item Enveloppe ajouté: ${env.nom}, Solde: ${env.soldeEnveloppe}");
+        print(
+            "  > Item Enveloppe ajouté: ${env.nom}, Solde: ${env
+                .soldeEnveloppe}");
       }
-      print("[EcranVirerArgent - _chargerDonneesInitiales] itemsTemp AVANT tri (${itemsTemp.length} items): ${itemsTemp.map((i) => '{Nom: ${i.nom}, PAP: ${i.estPretAPlacer}, Solde: ${i.solde}, ID: ${i.id}}').toList()}");
+      if (mounted) {
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] itemsTemp AVANT tri (${itemsTemp
+                .length} items): ${itemsTemp.map((i) => '{Nom: ${i
+                .nom}, PAP: ${i.estPretAPlacer}, Solde: ${i.solde}, ID: ${i
+                .id}}').toList()}");
+      }
 
 
       // 5. Trier et mettre à jour la liste principale
       if (itemsTemp.isNotEmpty) {
-        List<ItemDeSelectionTransfert> itemsPretAPlacer = itemsTemp.where((item) => item.estPretAPlacer).toList();
-        List<ItemDeSelectionTransfert> enveloppesSeulement = itemsTemp.where((item) => !item.estPretAPlacer).toList();
+        List<ItemDeSelectionTransfert> itemsPretAPlacer =
+        itemsTemp.where((item) => item.estPretAPlacer).toList();
+        List<ItemDeSelectionTransfert> enveloppesSeulement =
+        itemsTemp.where((item) => !item.estPretAPlacer).toList();
 
-        itemsPretAPlacer.sort((a, b) => a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
-        enveloppesSeulement.sort((a, b) => a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
+        itemsPretAPlacer
+            .sort((a, b) => a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
+        enveloppesSeulement
+            .sort((a, b) => a.nom.toLowerCase().compareTo(b.nom.toLowerCase()));
 
-        _tousLesItemsSelectionnables = [...itemsPretAPlacer, ...enveloppesSeulement];
+        _tousLesItemsSelectionnables = [
+          ...itemsPretAPlacer,
+          ...enveloppesSeulement
+        ];
       } else {
         _tousLesItemsSelectionnables = [];
       }
-      print("[EcranVirerArgent - _chargerDonneesInitiales] _tousLesItemsSelectionnables APRÈS tri (${_tousLesItemsSelectionnables.length} items): ${_tousLesItemsSelectionnables.map((i) => '{Nom: ${i.nom}, PAP: ${i.estPretAPlacer}, Solde: ${i.solde}, ID: ${i.id}}').toList()}");
+      if (mounted) {
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] _tousLesItemsSelectionnables APRÈS tri (${_tousLesItemsSelectionnables
+                .length} items): ${_tousLesItemsSelectionnables.map((
+                i) => '{Nom: ${i.nom}, PAP: ${i.estPretAPlacer}, Solde: ${i
+                .solde}, ID: ${i.id}}').toList()}");
+      }
 
+      // Appel de _mettreAJourSelectionsInitiales (qui a été modifiée)
       _mettreAJourSelectionsInitiales();
 
+      // *** VÉRIFICATION ET CORRECTION FINALE APRÈS L'INITIALISATION ***
+      // Cette partie est cruciale pour s'assurer que même après la logique
+      // dans _mettreAJourSelectionsInitiales, si un conflit persiste (par exemple,
+      // si _mettreAJourSelectionsInitiales a défini les deux sur le même item par défaut
+      // et qu'il n'y avait pas d'autre choix), nous le corrigeons ici.
+      if (_selectionSource != null &&
+          _selectionDestination != null &&
+          _selectionSource!.id == _selectionDestination!.id) {
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] CONFLIT APRÈS _mettreAJourSelectionsInitiales: Source et Destination sont identiques ('${_selectionSource!
+                .nom}').");
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] Tentative de résolution: Mise à NULL de la destination.");
+        // Stratégie simple : mettre la destination à null.
+        // Cela garantit qu'au moins un dropdown n'aura pas sa valeur filtrée par l'autre.
+        _selectionDestination = null;
+        print(
+            "[EcranVirerArgent - _chargerDonneesInitiales] Destination mise à NULL. Source: ${_selectionSource
+                ?.nom}, Destination: ${_selectionDestination?.nom}");
+      }
     } catch (e, s) {
-      print("[EcranVirerArgent - _chargerDonneesInitiales] ERREUR GLOBALE pendant le chargement: $e\nStackTrace: $s");
+      print(
+          "[EcranVirerArgent - _chargerDonneesInitiales] ERREUR GLOBALE pendant le chargement: $e\nStackTrace: $s");
       if (mounted) {
         setState(() {
           _errorMessage = "Erreur de chargement des données : ${e.toString()}";
+          // _isLoading = false; // Déjà géré dans le finally ou à la fin du try
         });
       }
-    }
-    print("[EcranVirerArgent - _chargerDonneesInitiales] Fin du chargement des données réelles. Nombre final d'items sélectionnables: ${_tousLesItemsSelectionnables.length}");
-  }
-
-  void _mettreAJourSelectionsInitiales() {
-    print("[EcranVirerArgent - _mettreAJourSelectionsInitiales] Début.");
-    if (_tousLesItemsSelectionnables.isNotEmpty) {
-      _selectionSource = _tousLesItemsSelectionnables.firstWhere(
-            (item) => item.id == ServiceTransfertArgent.idPretAPlacer,
-        orElse: () => _tousLesItemsSelectionnables.first,
-      );
-      print(
-          "[EcranVirerArgent - _mettreAJourSelectionsInitiales] Sélection source initiale: ${_selectionSource
-              ?.nom}");
-
-      if (_tousLesItemsSelectionnables.length > 1) {
-        _selectionDestination = _tousLesItemsSelectionnables
-            .where((item) => item.id != ServiceTransfertArgent.idPretAPlacer)
-            .firstOrNull; // Prend la première enveloppe non "Prêt à placer"
-        if (_selectionDestination == null &&
-            _selectionSource?.id != _tousLesItemsSelectionnables.last.id) {
-          // Fallback si "Prêt à placer" est le seul ou si on veut éviter de sélectionner la même source et dest
-          _selectionDestination = _tousLesItemsSelectionnables.last;
-        }
-      } else {
-        _selectionDestination =
-        null; // Pas de destination si "Prêt à placer" est le seul item
+    } finally {
+      // S'assurer que _isLoading est mis à false même en cas d'erreur non capturée plus haut dans le try
+      // ou si _currentUser était null au début.
+      if (mounted &&
+          _isLoading) { // Ne pas appeler setState si _isLoading est déjà false
+        setState(() {
+          _isLoading = false;
+        });
       }
       print(
-          "[EcranVirerArgent - _mettreAJourSelectionsInitiales] Sélection destination initiale: ${_selectionDestination
-              ?.nom}");
-    } else {
-      _selectionSource = null;
-      _selectionDestination = null;
-      print(
-          "[EcranVirerArgent - _mettreAJourSelectionsInitiales] Aucun item sélectionnable, sélections mises à null.");
+          "[EcranVirerArgent - _chargerDonneesInitiales] Fin du chargement des données réelles. isLoading: $_isLoading. Nombre final d'items sélectionnables: ${_tousLesItemsSelectionnables
+              .length}");
     }
-    _valeurClavier = "0";
-    _montantController.text = _valeurClavier;
-    _montantATransferer = 0.0;
-    print("[EcranVirerArgent - _mettreAJourSelectionsInitiales] Fin.");
   }
 
-  // --- Logique du clavier et du transfert (simplifiée pour se concentrer sur le chargement) ---
+
   void _onClavierNumeroAppuye(String valeur) {
     setState(() {
       if (_valeurClavier == "0") {
@@ -345,8 +441,7 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
 
     try {
       print(
-          "[EcranVirerArgent - _effectuerLeTransfert] Tentative de transfert de $_montantATransferer de ${_selectionSource!
-              .nom} vers ${_selectionDestination!.nom}");
+          "[EcranVirerArgent - _effectuerLeTransfert] Tentative de transfert de $_montantATransferer de ${_selectionSource!.nom} vers ${_selectionDestination!.nom}");
       await _serviceTransfert.transfererArgent(
         utilisateurId: _currentUser!.uid,
         sourceId: _selectionSource!.id,
@@ -362,18 +457,28 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
         const SnackBar(content: Text("Transfert effectué avec succès !")),
       );
       // Recharger les données pour refléter les changements
-      await _chargerDonneesInitialesAvecAffichage();
-    } catch (e) {
-      print(
-          "[EcranVirerArgent - _effectuerLeTransfert] ERREUR lors du transfert: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur lors du transfert: ${e.toString()}")),
-      );
-    } finally {
-      if (mounted) {
+      if (mounted) { // Toujours vérifier mounted avant setState
         setState(() {
-          _isLoading = false;
+          _isLoading = true; // Indiquer le début du rechargement
+          _errorMessage = null;
         });
+      }
+      await _chargerDonneesInitiales(); // Utilisez cette méthode si elle gère déjà la fin du chargement (_isLoading = false et setState)
+
+    } catch (e) {
+      print("[EcranVirerArgent - _effectuerLeTransfert] ERREUR lors du transfert: $e");
+      if (mounted) { // Vérifier mounted
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur lors du transfert: ${e.toString()}")),
+        );
+        // Vous pourriez vouloir aussi mettre _isLoading = false ici si l'erreur empêche le rechargement
+        setState(() {
+          _isLoading = false; // Important si le rechargement n'a pas lieu
+        });
+      }
+    } finally {
+      // ET que _chargerDonneesInitiales ne s'exécute pas complètement :
+      if (mounted && _isLoading && ModalRoute.of(context)?.isCurrent == true) {
       }
     }
   }
@@ -492,29 +597,30 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
             // Plus besoin de Card ici si on veut un look plus intégré au-dessus du clavier
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
-              // Espace avant le clavier
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text("Depuis", style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant)),
+                  Text("Depuis", style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<ItemDeSelectionTransfert>(
                     decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       filled: true,
-                      fillColor: theme.colorScheme.surfaceVariant.withOpacity(
-                          0.3),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12.0, vertical: 15.0),
+                      fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 15.0),
                     ),
                     value: _selectionSource,
-                    items: _tousLesItemsSelectionnables.map((item) {
+                    // FILTRER LES ITEMS POUR LE DROPDOWN "DEPUIS"
+                    items: _tousLesItemsSelectionnables
+                        .where((item) => _selectionDestination == null || _selectionDestination!.id != item.id) // Exclure la destination sélectionnée
+                        .map((item) {
+                      // Si l'item est celui actuellement sélectionné dans CE dropdown,
+                      // il n'a pas besoin d'être désactivé, il est juste la valeur.
+                      // La désactivation est pour les options DANS la liste déroulante.
                       return DropdownMenuItem<ItemDeSelectionTransfert>(
                         value: item,
                         child: Text(
-                          '${item.nom} (${item.solde.toStringAsFixed(2)} €)',
+                          '${item.nom} (${item.solde.toStringAsFixed(2)} \$)', // Changé € en $
                           overflow: TextOverflow.ellipsis,
                         ),
                       );
@@ -522,38 +628,36 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
                     onChanged: (ItemDeSelectionTransfert? newValue) {
                       setState(() {
                         _selectionSource = newValue;
+                        // Optionnel: Si la nouvelle source est la même que l'ancienne destination,
+                        // réinitialiser la destination pour éviter une sélection invalide.
+                        if (_selectionDestination != null && newValue != null && _selectionDestination!.id == newValue.id) {
+                          _selectionDestination = null;
+                        }
                       });
                     },
                     isExpanded: true,
                   ),
                   const SizedBox(height: 12),
-                  // Espace réduit entre les dropdowns
-                  Text("Vers", style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant)),
+                  Text("Vers", style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<ItemDeSelectionTransfert>(
                     decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       filled: true,
-                      fillColor: theme.colorScheme.surfaceVariant.withOpacity(
-                          0.3),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12.0, vertical: 15.0),
+                      fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 15.0),
                     ),
                     value: _selectionDestination,
-                    items: _tousLesItemsSelectionnables.map((item) {
-                      final bool estSourceSelectionnee = _selectionSource !=
-                          null && _selectionSource!.id == item.id;
+                    // FILTRER LES ITEMS POUR LE DROPDOWN "VERS"
+                    items: _tousLesItemsSelectionnables
+                        .where((item) => _selectionSource == null || _selectionSource!.id != item.id) // Exclure la source sélectionnée
+                        .map((item) {
+                      // Si l'item est celui actuellement sélectionné dans CE dropdown,
+                      // il n'a pas besoin d'être désactivé.
                       return DropdownMenuItem<ItemDeSelectionTransfert>(
                         value: item,
-                        enabled: !estSourceSelectionnee,
                         child: Text(
-                          '${item.nom} (${item.solde.toStringAsFixed(2)} €)',
-                          style: estSourceSelectionnee
-                              ? TextStyle(color: theme.disabledColor,
-                              fontStyle: FontStyle.italic)
-                              : null,
+                          '${item.nom} (${item.solde.toStringAsFixed(2)} \$)', // Changé € en $
                           overflow: TextOverflow.ellipsis,
                         ),
                       );
@@ -561,6 +665,11 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
                     onChanged: (ItemDeSelectionTransfert? newValue) {
                       setState(() {
                         _selectionDestination = newValue;
+                        // Optionnel: Si la nouvelle destination est la même que l'ancienne source,
+                        // réinitialiser la source pour éviter une sélection invalide.
+                        if (_selectionSource != null && newValue != null && _selectionSource!.id == newValue.id) {
+                          _selectionSource = null;
+                        }
                       });
                     },
                     isExpanded: true,
