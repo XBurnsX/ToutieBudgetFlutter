@@ -25,8 +25,7 @@ class CategorieForReorder {
 class ReorderCategoriesScreen extends StatefulWidget {
   final String userId;
 
-  const ReorderCategoriesScreen({Key? key, required this.userId})
-      : super(key: key);
+  const ReorderCategoriesScreen({super.key, required this.userId});
 
   @override
   _ReorderCategoriesScreenState createState() =>

@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:toutie_budget/models/compte_model.dart';
-import 'package:toutie_budget/models/categorie_budget_model.dart';
-import 'package:toutie_budget/widgets/transactions_review_banner.dart';
-import 'package:toutie_budget/widgets/budget_categories_list.dart';
+import 'package:toutie_budget/models/categorie_model.dart';
+import '../models/categorie_budget_model.dart';
+import '../models/compte_model.dart';
+import '../models/enveloppe_model.dart';
+import '../widgets/budget_categories_list.dart';
+import '../widgets/transactions_review_banner.dart';
 import 'budget/ecran_virer_argent.dart';
-import 'gestion_categories_enveloppes_screen.dart'
-    show Categorie, EnveloppeTestData, TypeObjectif, GestionCategoriesEnveloppesScreen; // Assurez-vous d'importer GestionCategoriesEnveloppesScreen
+import 'gestion_categories_enveloppes_screen.dart';
+
 
 
 class EcranBudget extends StatefulWidget {
@@ -90,10 +92,10 @@ class _EcranBudgetState extends State<EcranBudget> {
 
   // MODIFIÉ: Renommée et type de retour changé
   EnveloppePourAffichageBudget _creerViewModelEnveloppePourListe(
-      EnveloppeTestData enveloppeSource,
+      EnveloppeModel enveloppeSource,
       ) {
-    double alloue = enveloppeSource.montantAlloue;
-    double soldeActuel = enveloppeSource.soldeActuel;
+    double alloue = enveloppeSource.soldeEnveloppe;
+    double soldeActuel = enveloppeSource.soldeEnveloppe;
     double depense = alloue - soldeActuel;
     if (depense < 0) {
       depense = 0;
@@ -108,26 +110,31 @@ class _EcranBudgetState extends State<EcranBudget> {
       montantAlloue: alloue,
       disponible: disponible,
       depense: depense,
-      couleur: Color(enveloppeSource.couleurThemeValue),
+      couleur: enveloppeSource.couleurThemeValue != null ? Color(enveloppeSource.couleurThemeValue!) : Colors.grey, // Ou une autre couleur par défaut
       icone: enveloppeSource.iconeCodePoint != null
           ? IconData(enveloppeSource.iconeCodePoint!, fontFamily: 'MaterialIcons')
           : null,
-      typeObjectif: enveloppeSource.typeObjectif,   // CORRIGÉ : Transférer la valeur
-      montantCible: enveloppeSource.montantCible,   // CORRIGÉ : Transférer la valeur
+      typeObjectif: TypeObjectif.values.firstWhere(
+            (e) => e.name == enveloppeSource.typeObjectifString,
+        orElse: () => TypeObjectif.aucun, // Valeur par défaut si la chaîne est invalide ou nulle
+      ),   // CORRIGÉ : Transférer la valeur
+      montantCible: enveloppeSource.objectifMontantPeriodique,   // CORRIGÉ : Transférer la valeur
       // dateCible: enveloppeSource.dateCible,    // Transférez si EnveloppePourAffichageBudget en a besoin directement
       // ET si EnveloppeTestData le fournit déjà correctement typé.
       // PAS DE messageSousObjectif ICI
     );
   }
 
-  CategorieBudgetModel _transformerCategorieFirestoreEnModel(
-      Categorie categorieFirestore, // categorieFirestore est de type Categorie de gestion_categories...
+  CategorieBudgetModel _creerCategorieBudgetModelDepuisDonnees(
+      CategorieModel categorieInfo,       // PREND MAINTENANT VOTRE MODÈLE CENTRALISÉ
+      List<EnveloppeModel> enveloppesDeLaCategorie, // ET LA LISTE DES ENVELOPPES RÉCUPÉRÉES SÉPARÉMENT
       ) {
     Color couleurPourLaVueCategorie;
-    if (categorieFirestore.enveloppes.isNotEmpty &&
-        // Assurez-vous que EnveloppeTestData a bien un champ couleurThemeValue
-        categorieFirestore.enveloppes.first.couleurThemeValue != null) {
-      couleurPourLaVueCategorie = Color(categorieFirestore.enveloppes.first.couleurThemeValue!);
+
+    // La logique de couleur utilise maintenant la liste d'enveloppes fournie
+    if (enveloppesDeLaCategorie.isNotEmpty &&
+        enveloppesDeLaCategorie.first.couleurThemeValue != null) { // Assurez-vous que EnveloppeModel a bien couleurThemeValue
+      couleurPourLaVueCategorie = Color(enveloppesDeLaCategorie.first.couleurThemeValue!);
     } else {
       couleurPourLaVueCategorie = Colors.blueGrey[700]!; // Couleur par défaut
     }
@@ -137,13 +144,10 @@ class _EcranBudgetState extends State<EcranBudget> {
     double depenseTotalCat = 0;
     double disponibleTotalCat = 0;
 
-    for (var enveloppeSource in categorieFirestore.enveloppes) {
-      // Crée le ViewModel pour l'enveloppe. Les calculs de dépense/disponible sont DANS _creerViewModelEnveloppePourListe
-      EnveloppePourAffichageBudget enveloppeVM = _creerViewModelEnveloppePourListe(
+    // Itérer sur la liste d'EnveloppeModel fournie
+    for (var enveloppeSource in enveloppesDeLaCategorie) {
+      EnveloppePourAffichageBudget enveloppeVM = _creerViewModelEnveloppePourListe( // Votre fonction existante pour transformer EnveloppeModel en EnveloppePourAffichageBudget
         enveloppeSource,
-        // On ne passe plus de dépenses ici, elles sont calculées à partir de enveloppeSource.soldeActuel
-        // On ne passe plus la couleur catégorie parente ici
-        // On ne passe plus moisAnneeCourant ici si non utilisé directement dans _creerViewModelEnveloppePourListe
       );
       enveloppesPourAffichage.add(enveloppeVM);
 
@@ -152,49 +156,62 @@ class _EcranBudgetState extends State<EcranBudget> {
       disponibleTotalCat += enveloppeVM.disponible;
     }
 
-    // Alternative pour disponibleTotalCat pour être cohérent avec les enveloppes :
-    // disponibleTotalCat = alloueTotalCat - depenseTotalCat;
-    // Cependant, si disponible est directement le soldeActuel, alors sommer les soldes actuels est aussi correct.
-    // Pour l'instant, sommer les 'disponible' des VMs est plus direct.
-
     return CategorieBudgetModel(
-      id: categorieFirestore.id,
-      nom: categorieFirestore.nom,
+      id: categorieInfo.id,             // Utilise l'ID de categorieInfo
+      nom: categorieInfo.nom,            // Utilise le nom de categorieInfo
       couleur: couleurPourLaVueCategorie,
-      info: '${enveloppesPourAffichage.length} enveloppe${enveloppesPourAffichage.length > 1 ? "s" : ""}', // Exemple d'info
+      info: '${enveloppesPourAffichage.length} enveloppe${enveloppesPourAffichage.length > 1 ? "s" : ""}',
       alloueTotal: alloueTotalCat,
       depenseTotal: depenseTotalCat,
       disponibleTotal: disponibleTotalCat,
-      enveloppes: enveloppesPourAffichage,
+      enveloppes: enveloppesPourAffichage, // La liste des VMs d'enveloppe
     );
   }
 
   Stream<List<CategorieBudgetModel>>? _getCategoriesBudgetStream() {
     if (_currentUser == null) return Stream.value([]);
-    // Pas besoin de dépendre de _transactionsStream pour l'instant avec cette approche simplifiée
 
     return _firestore
         .collection('users')
         .doc(_currentUser!.uid)
-        .collection('categories') // Ou la collection où vous stockez les données mensuelles
+        .collection('categories')
         .orderBy('nom')
         .snapshots()
-        .map((snapshot) { // Pas besoin d'asyncMap si on ne récupère pas d'autres données ici
-      if (snapshot.docs.isEmpty) {
+        .asyncMap((snapshotCategoriesFirestore) async {
+      if (snapshotCategoriesFirestore.docs.isEmpty) {
         return <CategorieBudgetModel>[];
       }
-      return snapshot.docs.map((doc) {
+
+      List<CategorieBudgetModel> resultatFinal = [];
+
+      for (var docCategorie in snapshotCategoriesFirestore.docs) {
         try {
-          final categorieFirestore = Categorie.fromFirestore(
-              doc as DocumentSnapshot<Map<String, dynamic>>);
-          // Appelle la version simplifiée de _transformerCategorieFirestoreEnModel
-          return _transformerCategorieFirestoreEnModel(categorieFirestore);
+          final categorieInfo = CategorieModel.fromFirestore(docCategorie as DocumentSnapshot<Map<String, dynamic>>);
+
+          QuerySnapshot snapshotEnveloppes = await _firestore
+              .collection('users')
+              .doc(_currentUser!.uid)
+              .collection('categories')
+              .doc(categorieInfo.id)
+              .collection('enveloppes')
+              .orderBy('nom')
+              .get();
+
+          List<EnveloppeModel> enveloppesDeLaCategorie = snapshotEnveloppes.docs
+              .map((docEnv) => EnveloppeModel.fromSnapshot(docEnv as DocumentSnapshot<Map<String, dynamic>>))
+              .toList();
+
+          // APPEL À LA NOUVELLE FONCTION DE TRANSFORMATION :
+          resultatFinal.add(
+              _creerCategorieBudgetModelDepuisDonnees(categorieInfo, enveloppesDeLaCategorie)
+          );
+
         } catch (e, stacktrace) {
-          print("Stream Catégories - ERREUR mapping doc ${doc.id}: $e");
-          print("Stream Catégories - Stacktrace: $stacktrace");
-          return null;
+          print("Stream Catégories Budget - ERREUR processing catégorie ${docCategorie.id}: $e");
+          print("Stream Catégories Budget - Stacktrace: $stacktrace");
         }
-      }).whereType<CategorieBudgetModel>().toList();
+      }
+      return resultatFinal;
     });
   }
 
@@ -373,7 +390,7 @@ class _EcranBudgetState extends State<EcranBudget> {
                   children: <Widget>[
                     if (comptesActuels.isNotEmpty)
                       ...comptesActuels.map((compte) =>
-                          _buildReadyToAssignBanner(theme, compte)).toList()
+                          _buildReadyToAssignBanner(theme, compte))
                     else
                       if (snapshotComptes.connectionState ==
                           ConnectionState.active)

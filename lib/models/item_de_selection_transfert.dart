@@ -1,6 +1,6 @@
 // lib/models/item_de_selection_transfert.dart (ou le chemin que vous préférez)
 
-import 'package:flutter/foundation.dart'; // Pour @required ou required dans les versions récentes de Flutter/Dart
+// Pour @required ou required dans les versions récentes de Flutter/Dart
 
 class ItemDeSelectionTransfert {
   final String id;

@@ -1,6 +1,6 @@
 // lib/services/auth_service.dart
 
-import 'package:firebase_core/firebase_core.dart'; // Nécessaire si vous utilisez Firebase.initializeApp() ici ou ailleurs
+// Nécessaire si vous utilisez Firebase.initializeApp() ici ou ailleurs
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:google_sign_in/google_sign_in.dart'; // Décommentez si vous implémentez Google Sign-In
@@ -95,7 +95,7 @@ class AuthService {
       // Gérer les erreurs spécifiques à FirebaseAuth (e.g., email-already-in-use, weak-password)
       print("Erreur d'inscription FirebaseAuth: ${e.code} - ${e.message}");
       // Vous pouvez retourner e.code ou un message personnalisé pour l'afficher à l'utilisateur
-      throw e; // Propagez l'exception pour la gérer dans l'interface utilisateur
+      rethrow; // Propagez l'exception pour la gérer dans l'interface utilisateur
     } catch (e) {
       print("Erreur générale lors de l'inscription: $e");
       throw Exception(
@@ -125,7 +125,7 @@ class AuthService {
       return firebaseUser;
     } on FirebaseAuthException catch (e) {
       print("Erreur de connexion FirebaseAuth: ${e.code} - ${e.message}");
-      throw e; // Propagez l'exception
+      rethrow; // Propagez l'exception
     } catch (e) {
       print("Erreur générale lors de la connexion: $e");
       throw Exception("Une erreur inconnue est survenue lors de la connexion.");

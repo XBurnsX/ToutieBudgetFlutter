@@ -29,7 +29,7 @@ class _EcranAccueilState extends State<EcranAccueil> {
   User? _currentUser;
   bool _isSigningIn = false;
 
-  List<String> _nomsDesComptesActuels = [ // Assurez-vous que c'est bien ici
+  final List<String> _nomsDesComptesActuels = [ // Assurez-vous que c'est bien ici
     "Compte Courant",
     "Épargne",
     "Carte de Crédit Perso",
@@ -120,8 +120,9 @@ class _EcranAccueilState extends State<EcranAccueil> {
     }
 
     int nouvelIndicePrincipal;
-    if (indexDepuisNavBar == 0) nouvelIndicePrincipal = 0; // Budget
-    else if (indexDepuisNavBar == 1) nouvelIndicePrincipal = 1; // Comptes
+    if (indexDepuisNavBar == 0) {
+      nouvelIndicePrincipal = 0; // Budget
+    } else if (indexDepuisNavBar == 1) nouvelIndicePrincipal = 1; // Comptes
     else if (indexDepuisNavBar == 3) nouvelIndicePrincipal = 2; // Stats
     else
       nouvelIndicePrincipal = _indiceSelectionne;

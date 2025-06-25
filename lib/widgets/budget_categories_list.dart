@@ -184,9 +184,11 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
                     ),
                   ),
                   Text(
-                    currencyFormatter.format(categorie.disponibleTotal),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: couleurTexteDisponible,
+                    currencyFormatter.format(enveloppe.soldeEnveloppe),
+                    style: TextStyle(
+                      color: enveloppe.couleurCompteSourceHex != null
+                          ? Color(enveloppe.couleurCompteSourceHex!) // Utilise la couleur du compte lié
+                          : theme.colorScheme.onSurface, // Couleur par défaut si non lié
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),

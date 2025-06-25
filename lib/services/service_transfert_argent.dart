@@ -1,6 +1,6 @@
 // lib/services/service_transfert_argent.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/enveloppe_model.dart'; // Assurez-vous que ce chemin est correct
+// Assurez-vous que ce chemin est correct
 
 class ServiceTransfertArgent {
   final FirebaseFirestore _firestore;

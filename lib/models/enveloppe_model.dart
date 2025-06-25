@@ -1,92 +1,78 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:flutter/material.dart'; // Plus besoin pour Color ici
-
-enum StatutEnveloppe { Vide, EnCours, Atteint, Negatif }
 
 class EnveloppeModel {
-  final String id;
-  final String categorieId;
-  final String userId;
-  final String nom;
-  final int ordre;
-  final String compteSourceId;
-
-  double montantAlloueActuellement;
-  String? compteSourceIdDeLaDerniereAllocation;
-
+  // ... autres champs existants ...
+  String id;
+  String nom;
+  String userId;
+  String categorieId;
+  // String? compteSourceId; // L'ancien nom, à remplacer ou supprimer
+  String? compteSourceAttacheId; // NOUVEAU : ID du compte bancaire lié après le 1er virement
+  int? couleurCompteSourceHex;  // NOUVEAU : Couleur du compte bancaire lié
+  double soldeEnveloppe;
+  int ordre;
+  String typeObjectifString;
   double? objectifMontantPeriodique;
-  String? typeObjectif;
-  DateTime? objectifDateEcheance;
-
+  Timestamp? objectifDateEcheance;
   Timestamp dateCreation;
   Timestamp derniereModification;
+  int? couleurThemeValue; // Ce champ est-il toujours pertinent ou est-il remplacé par couleurCompteSourceHex pour l'affichage ?
 
   EnveloppeModel({
     required this.id,
-    required this.categorieId,
-    required this.userId,
     required this.nom,
+    required this.userId,
+    required this.categorieId,
+    this.compteSourceAttacheId, // Initialisé à null
+    this.couleurCompteSourceHex, // Initialisé à null
+    required this.soldeEnveloppe,
     required this.ordre,
-    // this.couleur, // RETIRÉ
-    this.montantAlloueActuellement = 0.0,
-    this.compteSourceIdDeLaDerniereAllocation,
+    required this.typeObjectifString,
     this.objectifMontantPeriodique,
-    this.typeObjectif,
     this.objectifDateEcheance,
     required this.dateCreation,
     required this.derniereModification,
-    required this.compteSourceId,
+    this.couleurThemeValue,
   });
 
-  // ... (getters comme statut restent valides) ...
-
-  factory EnveloppeModel.fromSnapshot(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory EnveloppeModel.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     if (data == null) {
-      throw Exception("Données du document null pour l'ID: ${doc.id}");
+      throw StateError('Données manquantes pour l\'enveloppe ID: ${doc.id}');
     }
-
-    // PAS DE PARSING DE COULEUR ICI
-
     return EnveloppeModel(
       id: doc.id,
-      categorieId: data['categorieId'] as String? ?? '',
-      userId: data['userId'] as String? ?? '',
-      nom: data['nom'] as String? ?? 'Nom Inconnu',
+      nom: data['nom'] as String? ?? 'Nom inconnu',
+      userId: data['userId'] as String,
+      categorieId: data['categorieId'] as String,
+      compteSourceAttacheId: data['compteSourceAttacheId'] as String?, // Lire depuis Firestore
+      couleurCompteSourceHex: data['couleurCompteSourceHex'] as int?, // Lire depuis Firestore
+      soldeEnveloppe: (data['soldeEnveloppe'] as num? ?? 0).toDouble(),
       ordre: data['ordre'] as int? ?? 0,
-      // couleur: parsedColor, // RETIRÉ
-      montantAlloueActuellement: (data['montantAlloueActuellement'] as num?)
-          ?.toDouble() ?? 0.0,
-      compteSourceIdDeLaDerniereAllocation: data['compteSourceIdDeLaDerniereAllocation'] as String?,
-      objectifMontantPeriodique: (data['objectifMontantPeriodique'] as num?)
-          ?.toDouble(),
-      typeObjectif: data['typeObjectif'] as String?,
-      objectifDateEcheance: (data['objectifDateEcheance'] as Timestamp?)
-          ?.toDate(),
+      typeObjectifString: data['typeObjectifString'] as String? ?? TypeObjectif.aucun.name,
+      objectifMontantPeriodique: (data['objectifMontantPeriodique'] as num?)?.toDouble(),
+      objectifDateEcheance: data['objectifDateEcheance'] as Timestamp?,
       dateCreation: data['dateCreation'] as Timestamp? ?? Timestamp.now(),
-      derniereModification: data['derniereModification'] as Timestamp? ??
-          Timestamp.now(),
-      compteSourceId: data['compteSourceId'] as String? ?? '',
+      derniereModification: data['derniereModification'] as Timestamp? ?? Timestamp.now(),
+      couleurThemeValue: data['couleurThemeValue'] as int?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'categorieId': categorieId,
-      'userId': userId,
       'nom': nom,
+      'userId': userId,
+      'categorieId': categorieId,
+      'compteSourceAttacheId': compteSourceAttacheId, // Écrire dans Firestore
+      'couleurCompteSourceHex': couleurCompteSourceHex, // Écrire dans Firestore
+      'soldeEnveloppe': soldeEnveloppe,
       'ordre': ordre,
-      // 'couleur': ... // RETIRÉ
-      'montantAlloueActuellement': montantAlloueActuellement,
-      'compteSourceIdDeLaDerniereAllocation': compteSourceIdDeLaDerniereAllocation,
+      'typeObjectifString': typeObjectifString,
       'objectifMontantPeriodique': objectifMontantPeriodique,
-      'typeObjectif': typeObjectif,
-      'objectifDateEcheance': objectifDateEcheance != null ? Timestamp.fromDate(
-          objectifDateEcheance!) : null,
+      'objectifDateEcheance': objectifDateEcheance,
       'dateCreation': dateCreation,
       'derniereModification': derniereModification,
-      'compteSourceId': compteSourceId,
+      'couleurThemeValue': couleurThemeValue,
     };
   }
 }

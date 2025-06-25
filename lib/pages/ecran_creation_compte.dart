@@ -258,9 +258,9 @@ class _EcranCreationCompteState extends State<EcranCreationCompte> {
           displayName = displayName[0].toUpperCase() + displayName
               .substring(1)
               .toLowerCase();
-          if (displayName == "Compte bancaire")
+          if (displayName == "Compte bancaire") {
             displayName = "Compte bancaire"; // Cas spécifique si besoin
-          else if (displayName == "Especes") displayName = "Espèces";
+          } else if (displayName == "Especes") displayName = "Espèces";
 
           return DropdownMenuItem<TypeDeCompte>(
             value: type,

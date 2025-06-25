@@ -203,7 +203,7 @@ class _EcranListeComptesState extends State<EcranListeComptes> {
                   horizontal: 16.0, vertical: 8.0),
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.surfaceVariant,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   // Ou une autre couleur de votre thème
                   foregroundColor: theme.colorScheme.onSurfaceVariant,
                   padding: const EdgeInsets.symmetric(

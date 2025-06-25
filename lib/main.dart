@@ -55,8 +55,6 @@ class MyApp extends StatelessWidget {
           onSecondary: couleurTexteBlanc,
           surface: couleurSurfaceSombre,
           onSurface: couleurTexteBlanc,
-          background: couleurFondSombre,
-          onBackground: couleurTexteBlanc,
           error: Colors.red[700]!,
           onError: couleurTexteBlanc,
           outline: couleurPrimaire.withAlpha(150),

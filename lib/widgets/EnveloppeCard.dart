@@ -146,10 +146,10 @@ class EnveloppeCard extends StatelessWidget {
 
 
   const EnveloppeCard({
-    Key? key,
+    super.key,
     required this.enveloppe,
     this.onTap, // <--- AJOUTEZ-LE AU CONSTRUCTEUR
-  }) : super(key: key);
+  });
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
