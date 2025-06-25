@@ -383,151 +383,289 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
   Widget build(BuildContext context) {
     print(
         "[EcranVirerArgent - build] Construction du widget. isLoading: $_isLoading, errorMessage: $_errorMessage");
+    final theme = Theme.of(context);
+
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Virer de l\'Argent')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Virer de l\'Argent')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              _errorMessage!,
+              style: TextStyle(color: theme.colorScheme.error, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_currentUser != null &&
+        (_tousLesItemsSelectionnables.isEmpty ||
+            _tousLesItemsSelectionnables.every((item) =>
+            item.estPretAPlacer))) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Virer de l\'Argent')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Text(
+              "Veuillez créer au moins une enveloppe pour pouvoir effectuer des virements.",
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Hauteur approximative du clavier et du bouton pour aider au layout si nécessaire
+    // Ceci est très approximatif et dépend du childAspectRatio, padding, etc.
+    // const double approxClavierHeight = 220; // Ajustez si vous avez une idée plus précise
+    // const double approxBoutonVirementHeight = 70; // 55 + padding
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Virer de l\'Argent'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-          ? Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _errorMessage!,
-            style: const TextStyle(color: Colors.red, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      )
-          : _tousLesItemsSelectionnables.isEmpty && _currentUser != null
-          ? Center( // Cas où tout est chargé mais il n'y a pas d'enveloppes (sauf peut-être "Prêt à placer" seul)
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _tousLesItemsSelectionnables.any((item) =>
-            item.estPretAPlacer && _tousLesItemsSelectionnables.length == 1)
-                ? "Veuillez créer des enveloppes pour pouvoir effectuer des virements."
-                : "Aucune enveloppe ou source de fonds disponible. Veuillez vérifier votre configuration ou créer des enveloppes.",
-            textAlign: TextAlign.center,
-          ),
-        ),
-      )
-          : Column( // Affichage principal si tout va bien
-        children: [
-          // --- Section des Dropdowns ---
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                // Dropdown Source
-                DropdownButtonFormField<ItemDeSelectionTransfert>(
-                  decoration: const InputDecoration(labelText: 'De (Source)'),
-                  value: _selectionSource,
-                  items: _tousLesItemsSelectionnables.map((item) {
-                    return DropdownMenuItem<ItemDeSelectionTransfert>(
-                      value: item,
-                      child: Text(
-                          '${item.nom} (${item.solde.toStringAsFixed(2)} €)'),
-                    );
-                  }).toList(),
-                  onChanged: (ItemDeSelectionTransfert? newValue) {
-                    setState(() {
-                      _selectionSource = newValue;
-                    });
-                  },
-                  isExpanded: true,
-                ),
-                const SizedBox(height: 10),
-                // Dropdown Destination
-                DropdownButtonFormField<ItemDeSelectionTransfert>(
-                  decoration: const InputDecoration(
-                      labelText: 'Vers (Destination)'),
-                  value: _selectionDestination,
-                  items: _tousLesItemsSelectionnables.map((item) {
-                    return DropdownMenuItem<ItemDeSelectionTransfert>(
-                      value: item,
-                      child: Text(
-                          '${item.nom} (${item.solde.toStringAsFixed(2)} €)'),
-                    );
-                  }).toList(),
-                  onChanged: (ItemDeSelectionTransfert? newValue) {
-                    setState(() {
-                      _selectionDestination = newValue;
-                    });
-                  },
-                  isExpanded: true,
-                ),
-              ],
-            ),
-          ),
+      body: Padding( // Ajout d'un Padding global pour éviter que les éléments ne collent aux bords de l'écran
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // --- Section du Montant (prend l'espace flexible et centré) ---
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 16.0),
+                  child: TextField(
+                    controller: _montantController,
+                    readOnly: true,
+                    textAlign: TextAlign.right,
+                    style: TextStyle( // Le style qui augmente la taille et causait l'encadré
+                      fontSize: 72,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                    decoration: InputDecoration(
+                      // 1. Indiquer que le champ doit être rempli
+                      filled: true,
+                      // 2. Spécifier la couleur de remplissage pour qu'elle corresponde au fond
+                      fillColor: theme.scaffoldBackgroundColor, // OU la couleur de fond spécifique si différente
+                      // 3. Essayer de minimiser la bordure visible, même si elle sera de la même couleur
+                      border: InputBorder.none, // Gardez ceci, au cas où cela réduirait l'épaisseur
+                      // Vous pouvez aussi essayer avec une bordure de la même couleur :
+                      // border: UnderlineInputBorder( // Ou OutlineInputBorder
+                      //  borderSide: BorderSide(color: theme.scaffoldBackgroundColor),
+                      // ),
 
-          // --- Section du Montant Affiché ---
-          Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16.0, vertical: 8.0),
-            child: TextField(
-              controller: _montantController,
-              readOnly: true,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              decoration: const InputDecoration(
-                labelText: 'Montant à transférer',
-                suffixText: '€',
+                      // Ajoutez votre hintText et suffixText ici si vous le souhaitez
+                      hintText: '0',
+                      hintStyle: TextStyle(
+                        fontSize: 56,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary.withOpacity(0.4),
+                      ),
+                      suffixText: '\$',
+                      suffixStyle: TextStyle(
+                        fontSize: 28,
+                        color: theme.colorScheme.primary.withOpacity(0.7),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          Expanded(child: Container()),
-          // Espace pour pousser le clavier vers le bas
 
-          // --- Section du Clavier Numérique ---
-          _buildClavierNumerique(),
 
-          // --- Bouton de Transfert ---
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50), // Hauteur minimale
+
+            // --- Section des Sélections (Source/Destination) ---
+            // Plus besoin de Card ici si on veut un look plus intégré au-dessus du clavier
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              // Espace avant le clavier
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text("Depuis", style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<ItemDeSelectionTransfert>(
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      filled: true,
+                      fillColor: theme.colorScheme.surfaceVariant.withOpacity(
+                          0.3),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12.0, vertical: 15.0),
+                    ),
+                    value: _selectionSource,
+                    items: _tousLesItemsSelectionnables.map((item) {
+                      return DropdownMenuItem<ItemDeSelectionTransfert>(
+                        value: item,
+                        child: Text(
+                          '${item.nom} (${item.solde.toStringAsFixed(2)} €)',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (ItemDeSelectionTransfert? newValue) {
+                      setState(() {
+                        _selectionSource = newValue;
+                      });
+                    },
+                    isExpanded: true,
+                  ),
+                  const SizedBox(height: 12),
+                  // Espace réduit entre les dropdowns
+                  Text("Vers", style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<ItemDeSelectionTransfert>(
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      filled: true,
+                      fillColor: theme.colorScheme.surfaceVariant.withOpacity(
+                          0.3),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12.0, vertical: 15.0),
+                    ),
+                    value: _selectionDestination,
+                    items: _tousLesItemsSelectionnables.map((item) {
+                      final bool estSourceSelectionnee = _selectionSource !=
+                          null && _selectionSource!.id == item.id;
+                      return DropdownMenuItem<ItemDeSelectionTransfert>(
+                        value: item,
+                        enabled: !estSourceSelectionnee,
+                        child: Text(
+                          '${item.nom} (${item.solde.toStringAsFixed(2)} €)',
+                          style: estSourceSelectionnee
+                              ? TextStyle(color: theme.disabledColor,
+                              fontStyle: FontStyle.italic)
+                              : null,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (ItemDeSelectionTransfert? newValue) {
+                      setState(() {
+                        _selectionDestination = newValue;
+                      });
+                    },
+                    isExpanded: true,
+                  ),
+                ],
               ),
-              onPressed: _effectuerLeTransfert,
-              child: const Text('Effectuer le Virement'),
             ),
-          ),
-        ],
+
+            // --- Section du Clavier Numérique ---
+            _buildClavierNumerique(theme),
+            // Pas de padding supplémentaire autour ici, géré dans le widget lui-même ou ci-dessous
+
+            // --- Bouton de Transfert ---
+            // Le SizedBox donne l'espacement "d'environ 15dp" en dessous du clavier
+            // Et le Padding en bas donne l'espacement par rapport au bord de l'écran
+            Padding(
+              padding: const EdgeInsets.only(top: 15.0, bottom: 16.0),
+              // top: 15 pour l'espace au-dessus du bouton
+              child: FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(55),
+                  textStyle: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: (_selectionSource != null &&
+                    _selectionDestination != null &&
+                    _montantATransferer != null && _montantATransferer! > 0)
+                    ? _effectuerLeTransfert
+                    : null,
+                child: const Text('Effectuer le Virement'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildClavierNumerique() {
-    // Adapter cette partie à votre design de clavier numérique existant
-    // Ceci est un exemple très basique
-    return GridView.count(
-      crossAxisCount: 3,
+// _buildClavierNumerique reste le même que dans la proposition précédente,
+// mais assurez-vous que son padding interne est approprié.
+// Par exemple, le GridView.builder avait un padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+// Vous pourriez vouloir ajuster cela ou le retirer si le Padding global de la Column externe est suffisant.
+// Pour cette nouvelle structure, il est probablement mieux de garder un padding horizontal dans _buildClavierNumerique
+// et de ne pas en avoir de vertical, ou un très petit.
+
+  Widget _buildClavierNumerique(ThemeData theme) {
+    final List<String> touchesClavier = [
+      '1', '2', '3',
+      '4', '5', '6',
+      '7', '8', '9',
+      '.', '0', 'effacer'
+    ];
+
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 1.9, // Légèrement ajusté, à tester
+        mainAxisSpacing: 8.0,
+        crossAxisSpacing: 8.0,
+      ),
+      itemCount: touchesClavier.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 2.0,
-      // Ajuster pour la taille des boutons
-      padding: const EdgeInsets.all(8.0),
-      mainAxisSpacing: 8.0,
-      crossAxisSpacing: 8.0,
-      children: [
-        ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((val) {
-          return ElevatedButton(
-            onPressed: () => _onClavierNumeroAppuye(val),
-            child: Text(val, style: const TextStyle(fontSize: 18)),
+      // Padding horizontal pour ne pas coller aux bords si le padding global du Scaffold n'est pas là.
+      // Puisque le Scaffold > Padding > Column a un padding horizontal de 16,
+      // celui-ci n'est peut-être plus nécessaire ou peut être réduit.
+      // Je le laisse pour l'instant, vous pouvez l'enlever pour voir l'effet.
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      // Uniquement padding vertical ici
+      itemBuilder: (context, index) {
+        final touche = touchesClavier[index];
+
+        if (touche == 'effacer') {
+          return TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: theme.colorScheme.secondaryContainer.withOpacity(
+                  0.5),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+            ),
+            onPressed: _onClavierEffacerAppuye,
+            child: Icon(Icons.backspace_outlined,
+                color: theme.colorScheme.onSecondaryContainer, size: 28),
           );
-        }),
-        ElevatedButton(
-          onPressed: _onClavierEffacerAppuye,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-          child: const Icon(Icons
-              .backspace_outlined), //Text('Effacer', style: TextStyle(fontSize: 18)),
-        ),
-      ],
+        } else {
+          return TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(
+                  0.7),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+            ),
+            onPressed: () => _onClavierNumeroAppuye(touche),
+            child: Text(
+              touche,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant),
+            ),
+          );
+        }
+      },
     );
   }
-
   @override
   void dispose() {
     _montantController.dispose();
