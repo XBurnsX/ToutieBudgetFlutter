@@ -171,7 +171,6 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
       }
       print("[EcranVirerArgent - _chargerDonneesInitiales] Nombre total d'EnveloppeModel chargées: ${toutesLesEnveloppes.length}");
       for (var env in toutesLesEnveloppes) {
-        print("  > Enveloppe chargée: ${env.nom}, ID: ${env.id}, CompteSourceID: ${env.compteSourceId}, Montant: ${env.soldeEnveloppe}");
       }
 
 
@@ -181,9 +180,9 @@ class _EcranVirerArgentState extends State<EcranVirerArgent> {
         print("  > Calcul PAP pour compte: ${compte.nom} (ID: ${compte.id}), SoldeInitial: ${compte.soldeInitial}");
         double totalAlloueAuxEnveloppesPourCeCompte = 0;
         for (EnveloppeModel env in toutesLesEnveloppes) {
-          if (env.compteSourceId == compte.id) {
+          if (env.compteSourceAttacheId == compte.id) { // <--- CORRECTED
             totalAlloueAuxEnveloppesPourCeCompte += env.soldeEnveloppe;
-            print("    >> Enveloppe '${env.nom}' (Montant: ${env.soldeEnveloppe}) est liée à ce compte.");
+            print("    >> Enveloppe '${env.nom}' (Montant: ${env.soldeEnveloppe}, compteSourceId: ${env.compteSourceAttacheId}) est liée au compte ${compte.id}.");
           }
         }
         print("  > Total alloué aux enveloppes pour compte '${compte.nom}': $totalAlloueAuxEnveloppesPourCeCompte");

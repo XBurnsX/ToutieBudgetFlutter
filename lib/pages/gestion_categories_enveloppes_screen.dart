@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart'; // Pour NumberFormat et DateFormat
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:toutie_budget/models/categorie_model.dart';
-import '../models/enveloppe_model.dart';
 
+// TODO: Vérifiez et ajustez ces chemins d'importation selon la structure de votre projet
+import 'package:toutie_budget/models/categorie_model.dart'; // Si CategorieModel est utilisé
+import '../models/enveloppe_model.dart'; // Pour EnveloppeModel
+// import 'package:toutie_budget/models/compte_bancaire_model.dart'; // Si vous avez un CompteBancaireModel externe
+
+// Si TypeObjectif n'est pas déjà défini dans un modèle importé
 enum TypeObjectif {
   aucun,
   mensuel,
   dateFixe,
 }
 
+// Modèle local pour CompteBancaireModel, si vous ne l'importez pas.
+// Si vous l'importez, supprimez cette définition locale.
 class CompteBancaireModel {
   final String id;
   final String nom;
 
-  CompteBancaireModel({required this.id, required this.nom});
+  // final String? couleurHex; // Optionnel
+
+  CompteBancaireModel({required this.id, required this.nom /*, this.couleurHex*/
+  });
 
   factory CompteBancaireModel.fromSnapshot(
       DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -26,18 +35,23 @@ class CompteBancaireModel {
     return CompteBancaireModel(
       id: doc.id,
       nom: data['nom'] as String? ?? 'Compte inconnu',
+      // couleurHex: data['couleurHex'] as String?,
     );
   }
 }
 
-
+// Modèle local pour Categorie. Si vous utilisez CategorieModel de votre fichier importé,
+// assurez-vous que les types correspondent ou ajustez.
 class Categorie {
   String id;
   String nom;
 
+  // int ordre; // Si utilisé
+
   Categorie({
     required this.id,
     required this.nom,
+    // this.ordre = 0,
   });
 
   factory Categorie.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -48,6 +62,7 @@ class Categorie {
     return Categorie(
       id: doc.id,
       nom: data['nom'] as String? ?? 'Nom non défini',
+      // ordre: data['ordre'] as int? ?? 0,
     );
   }
 }
@@ -67,13 +82,15 @@ class _GestionCategoriesEnveloppesScreenState
   User? _currentUser;
 
   final currencyFormatter = NumberFormat.currency(
-      locale: 'fr_CA', symbol: '\$');
+      locale: 'fr_CA', symbol: '\$'); // Formatage monétaire
   final TextEditingController _nomCategorieController = TextEditingController();
   final TextEditingController _nomEnveloppeController = TextEditingController();
-  final TextEditingController _montantInitialEnveloppeController = TextEditingController();
 
-  String? _selectedCompteIdPourNouvelleEnveloppe;
+  // SUPPRIMÉ: // final TextEditingController _montantInitialEnveloppeController = TextEditingController();
+
   List<CompteBancaireModel> _comptesBancairesUtilisateur = [];
+
+  // SUPPRIMÉ: // String? _selectedCompteIdPourNouvelleEnveloppe;
 
   @override
   void initState() {
@@ -81,17 +98,20 @@ class _GestionCategoriesEnveloppesScreenState
     _currentUser = _auth.currentUser;
     if (_currentUser == null) {
       print("ERREUR: Utilisateur non connecté sur l'écran de gestion.");
+      // Optionnel: Gérer la redirection ou afficher un message persistant
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text(
-                'Utilisateur non connecté. Veuillez vous reconnecter.'),
+            const SnackBar(
+                content: Text(
+                    'Utilisateur non connecté. Veuillez vous reconnecter.'),
                 duration: Duration(seconds: 5)),
           );
+          // Exemple: Navigator.of(context).pushReplacementNamed('/ecran_connexion');
         }
       });
     } else {
-      _chargerComptesBancaires();
+      _chargerComptesBancaires(); // Utile si vous avez d'autres fonctionnalités utilisant les comptes
     }
   }
 
@@ -99,22 +119,25 @@ class _GestionCategoriesEnveloppesScreenState
   void dispose() {
     _nomCategorieController.dispose();
     _nomEnveloppeController.dispose();
-    _montantInitialEnveloppeController.dispose();
+    // SUPPRIMÉ: // _montantInitialEnveloppeController.dispose();
     super.dispose();
   }
 
   Future<void> _chargerComptesBancaires() async {
     if (_currentUser == null) return;
     try {
-      final snapshot = await _firestore.collection('users')
+      final snapshot = await _firestore
+          .collection('users')
           .doc(_currentUser!.uid)
-          .collection('comptes') // VÉRIFIEZ CE CHEMIN
+          .collection(
+          'comptes') // Assurez-vous que le nom de la collection est correct
           .get();
-      _comptesBancairesUtilisateur = snapshot.docs
-          .map((doc) => CompteBancaireModel.fromSnapshot(doc))
-          .toList();
       if (mounted) {
-        setState(() {});
+        setState(() {
+          _comptesBancairesUtilisateur = snapshot.docs
+              .map((doc) => CompteBancaireModel.fromSnapshot(doc))
+              .toList();
+        });
       }
     } catch (e) {
       print("Erreur chargement comptes bancaires: $e");
@@ -149,21 +172,31 @@ class _GestionCategoriesEnveloppesScreenState
     return null;
   }
 
+  // --- Fonctions utilitaires diverses ---
   String _getNomMoisActuel() {
+    // S'assure que 'fr_FR' est initialisé si nécessaire (main.dart)
+    // await initializeDateFormatting('fr_FR', null);
     return DateFormat('MMMM', 'fr_FR').format(DateTime.now());
   }
 
   Stream<List<EnveloppeModel>> _getAllEnveloppesAvecObjectifMensuelStream() {
     if (_currentUser == null) return Stream.value([]);
     return _firestore
-        .collectionGroup('enveloppes')
+        .collectionGroup(
+        'enveloppes') // Requête sur toutes les collections 'enveloppes'
         .where('userId', isEqualTo: _currentUser!.uid)
         .where('typeObjectifString', isEqualTo: TypeObjectif.mensuel.name)
+    // Ajoutez d'autres filtres ou tris si nécessaire
         .snapshots()
         .map((snapshot) =>
-        snapshot.docs.map((doc) => EnveloppeModel.fromSnapshot(doc)).toList());
+        snapshot.docs
+            .map((doc) => EnveloppeModel.fromSnapshot(doc))
+            .toList());
   }
 
+  // Fonction pour afficher le widget trailing d'une enveloppe (objectif, etc.)
+  // Cette fonction était dans votre code d'origine, je la conserve.
+  // Adaptez-la si EnveloppeModel a changé ou si vous ne l'utilisez plus.
   Widget _buildTrailingWidgetForEnveloppeModel(EnveloppeModel enveloppe,
       ThemeData theme) {
     TypeObjectif typeObjectifLocal = TypeObjectif.values.firstWhere(
@@ -183,7 +216,7 @@ class _GestionCategoriesEnveloppesScreenState
       } else if (typeObjectifLocal == TypeObjectif.dateFixe &&
           enveloppe.objectifDateEcheance != null) {
         objectifStr += ' pour ${DateFormat('dd/MM/yy', 'fr_FR').format(
-            enveloppe.objectifDateEcheance!)}';
+            enveloppe.objectifDateEcheance!.toDate())}';
       }
       return Text(
         objectifStr,
@@ -197,9 +230,9 @@ class _GestionCategoriesEnveloppesScreenState
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             alignment: Alignment.centerRight),
         onPressed: () {
+          // Naviguer vers un écran de définition/modification d'objectif
           print('Naviguer pour définir/modifier l\'objectif pour ${enveloppe
               .nom}');
-          // TODO: Implémenter la navigation
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Définition d\'objectif pour ${enveloppe
@@ -207,15 +240,15 @@ class _GestionCategoriesEnveloppesScreenState
             );
           }
         },
-        child: Text('Ajouter objectif',
-            style: TextStyle(
-                color: theme.colorScheme.primary,
-                fontSize: theme.textTheme.bodySmall?.fontSize)),
+        child: Text('Ajouter objectif', style: TextStyle(
+            color: theme.colorScheme.primary,
+            fontSize: theme.textTheme.bodySmall?.fontSize)),
       );
     }
   }
 
   void _navigateToReorderScreen() {
+    // Naviguer vers l'écran de réorganisation
     print('Navigation vers la page de réorganisation demandée.');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -223,13 +256,16 @@ class _GestionCategoriesEnveloppesScreenState
             content: Text('Page de réorganisation non implémentée.')),
       );
     }
-  } // --- Gestion des Catégories ---
+  }
+
+  // --- Gestion des Catégories (Dialogues et Actions Firestore) ---
+
   void _afficherDialogueAjoutCategorie() {
     if (_currentUser == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Veuillez vous connecter pour ajouter une catégorie.')));
+            content: Text(
+                'Veuillez vous connecter pour ajouter une catégorie.')));
       }
       return;
     }
@@ -252,7 +288,21 @@ class _GestionCategoriesEnveloppesScreenState
             ),
             TextButton(
               child: const Text('Ajouter'),
-              onPressed: () => _ajouterCategorie(dialogContext),
+              onPressed: () {
+                final nomCategorie = _nomCategorieController.text.trim();
+                if (nomCategorie.isNotEmpty) {
+                  _ajouterCategorie(dialogContext);
+                } else {
+                  if (mounted) { // Assurez-vous que le widget est toujours monté
+                    ScaffoldMessenger
+                        .of(dialogContext)
+                        .showSnackBar( // Utilisez dialogContext ici
+                      const SnackBar(content: Text(
+                          "Le nom de la catégorie ne peut pas être vide.")),
+                    );
+                  }
+                }
+              },
             ),
           ],
         );
@@ -262,40 +312,42 @@ class _GestionCategoriesEnveloppesScreenState
 
   Future<void> _ajouterCategorie(BuildContext dialogContext) async {
     final nomCategorie = _nomCategorieController.text.trim();
-    if (nomCategorie.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Le nom de la catégorie ne peut pas être vide.')));
-      }
-      return;
-    }
+    // La vérification de nom vide est déjà faite avant d'appeler cette méthode
 
     final userCategoriesCollection = _getUserCategoriesCollection();
     if (userCategoriesCollection == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Utilisateur non authentifié. Impossible d\'ajouter.')));
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar( // Utilisez dialogContext ici
+                content: Text(
+                    'Utilisateur non authentifié. Impossible d\'ajouter la catégorie.')));
       }
-      Navigator.of(dialogContext).pop();
       return;
     }
 
     try {
+      // Optionnel: ajouter un champ 'ordre' ou 'dateCreation'
       await userCategoriesCollection.add({
         'nom': nomCategorie,
+        'ordre': 0, // Exemple
+        'dateCreation': Timestamp.now(), // Exemple
       });
-      Navigator.of(dialogContext).pop();
+      Navigator.of(dialogContext).pop(); // Ferme le dialogue
       _nomCategorieController.clear();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Catégorie "$nomCategorie" ajoutée.')));
+          SnackBar(content: Text('Catégorie "$nomCategorie" ajoutée.')),
+        );
       }
     } catch (e) {
       print("Erreur ajout catégorie: $e");
       if (mounted) {
-        ScaffoldMessenger.of(dialogContext).showSnackBar(
-          SnackBar(content: Text('Erreur lors de l\'ajout: $e')));
+        ScaffoldMessenger
+            .of(dialogContext)
+            .showSnackBar( // Utilisez dialogContext ici
+          SnackBar(
+              content: Text('Erreur lors de l\'ajout de la catégorie: $e')),
+        );
       }
     }
   }
@@ -304,7 +356,7 @@ class _GestionCategoriesEnveloppesScreenState
     if (_currentUser == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Veuillez vous connecter pour modifier.')));
+            content: Text('Veuillez vous connecter pour modifier.')));
       }
       return;
     }
@@ -317,29 +369,43 @@ class _GestionCategoriesEnveloppesScreenState
           content: TextField(
             controller: _nomCategorieController,
             autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
           ),
           actions: <Widget>[
             TextButton(
               child: const Text('Annuler'),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
-                _nomCategorieController.clear();
+                _nomCategorieController
+                    .clear(); // Important pour la prochaine ouverture
               },
             ),
             TextButton(
               child: const Text('Sauvegarder'),
               onPressed: () async {
                 final nouveauNom = _nomCategorieController.text.trim();
-                if (nouveauNom.isEmpty) return;
+                if (nouveauNom.isEmpty) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(
+                            content: Text('Le nom ne peut pas être vide.')));
+                  }
+                  return; // Ne pas fermer, laisser l'utilisateur corriger
+                }
+                if (nouveauNom == categorie.nom) {
+                  Navigator.of(dialogContext).pop(); // Pas de changement
+                  _nomCategorieController.clear();
+                  return;
+                }
 
                 final categoryDocRef = _getUserCategoryDoc(categorie.id);
                 if (categoryDocRef == null) {
                   if (mounted) {
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(
-                          content: Text('Utilisateur non authentifié.')));
+                        const SnackBar(
+                            content: Text('Utilisateur non authentifié.')));
                   }
-                  Navigator.of(dialogContext).pop();
+                  // Navigator.of(dialogContext).pop(); // Pas nécessaire de pop si le doc ref est null
                   return;
                 }
                 try {
@@ -349,13 +415,15 @@ class _GestionCategoriesEnveloppesScreenState
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(
-                          'Catégorie renommée en "$nouveauNom".')));
+                          'Catégorie renommée en "$nouveauNom".')),
+                    );
                   }
                 } catch (e) {
                   print("Erreur modification catégorie: $e");
                   if (mounted) {
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(content: Text('Erreur de modification: $e')));
+                      SnackBar(content: Text('Erreur de modification: $e')),
+                    );
                   }
                 }
               },
@@ -370,7 +438,7 @@ class _GestionCategoriesEnveloppesScreenState
     if (_currentUser == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Veuillez vous connecter pour supprimer.')));
+            content: Text('Veuillez vous connecter pour supprimer.')));
       }
       return;
     }
@@ -379,8 +447,9 @@ class _GestionCategoriesEnveloppesScreenState
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Confirmer la suppression'),
-          content: Text('Supprimer la catégorie "${categorie
-              .nom}" et toutes ses enveloppes ? Attention, cette action est irréversible.'),
+          content: Text(
+              'Supprimer la catégorie "${categorie
+                  .nom}" et toutes ses enveloppes ? Cette action est irréversible.'),
           actions: <Widget>[
             TextButton(
               child: const Text('Annuler'),
@@ -394,40 +463,50 @@ class _GestionCategoriesEnveloppesScreenState
                 if (categoryDocRef == null) {
                   if (mounted) {
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(
-                          content: Text('Utilisateur non authentifié.')));
+                        const SnackBar(
+                            content: Text('Utilisateur non authentifié.')));
                   }
-                  Navigator.of(dialogContext).pop();
+                  // Navigator.of(dialogContext).pop(); // Pas nécessaire si erreur avant action
                   return;
                 }
                 try {
-                  // Supprimer d'abord toutes les enveloppes dans la sous-collection
+                  // Supprimer d'abord les enveloppes dans la sous-collection
                   final enveloppesSnapshot = await categoryDocRef.collection(
                       'enveloppes').get();
                   WriteBatch batch = _firestore.batch();
                   for (DocumentSnapshot doc in enveloppesSnapshot.docs) {
                     batch.delete(doc.reference);
                   }
-                  await batch
-                      .commit(); // Exécuter la suppression en batch des enveloppes
+                  await batch.commit();
 
                   // Ensuite, supprimer la catégorie elle-même
                   await categoryDocRef.delete();
 
-                  Navigator.of(dialogContext).pop();
+                  Navigator
+                      .of(dialogContext)
+                      .pop(); // Fermer le dialogue de confirmation
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Catégorie "${categorie
-                          .nom}" et ses enveloppes supprimées.')));
+                      SnackBar(
+                          content: Text(
+                              'Catégorie "${categorie
+                                  .nom}" et ses enveloppes supprimées.')),
+                    );
                   }
                 } catch (e) {
                   print("Erreur suppression catégorie: $e");
-                  Navigator
-                      .of(dialogContext)
-                      .pop(); // S'assurer que le dialogue est fermé
+                  // Il est possible que le dialogue soit déjà fermé si l'erreur survient après le pop
+                  // Donc, utiliser le context principal pour ce snackbar d'erreur
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Erreur de suppression: $e')));
+                    ScaffoldMessenger
+                        .of(context)
+                        .showSnackBar( // Changé pour context principal
+                      SnackBar(content: Text('Erreur de suppression: $e')),
+                    );
+                  }
+                  // S'assurer que le dialogue est fermé en cas d'erreur avant le pop initial
+                  if (Navigator.canPop(dialogContext)) {
+                    Navigator.of(dialogContext).pop();
                   }
                 }
               },
@@ -438,198 +517,152 @@ class _GestionCategoriesEnveloppesScreenState
     );
   }
 
-// --- Gestion des Enveloppes ---
+  // --- Gestion des Enveloppes (Dialogues et Actions Firestore) ---
+
   void _afficherDialogueAjoutEnveloppe(Categorie categorie) {
     if (_currentUser == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Veuillez vous connecter pour ajouter une enveloppe.')));
+            content: Text(
+                'Veuillez vous connecter pour ajouter une enveloppe.')));
       }
       return;
     }
     _nomEnveloppeController.clear();
-    _montantInitialEnveloppeController.clear();
-    _selectedCompteIdPourNouvelleEnveloppe = null; // Réinitialiser
+    // SUPPRIMÉ: _montantInitialEnveloppeController.clear();
+    // SUPPRIMÉ: _selectedCompteIdPourNouvelleEnveloppe = null;
 
-    if (_comptesBancairesUtilisateur.isEmpty) {
-      // Peut-être recharger ou informer l'utilisateur qu'aucun compte n'est disponible
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text(
-                'Aucun compte bancaire trouvé. Veuillez en ajouter un ou recharger.')),
-          );
-        }
-      });
-      return; // Ne pas ouvrir le dialogue si aucun compte n'est disponible
-    }
+    // SUPPRIMÉ: La vérification _comptesBancairesUtilisateur.isEmpty et le code associé
+    // car le Dropdown des comptes a été retiré.
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        // Utiliser StatefulBuilder pour gérer l'état du DropdownButton à l'intérieur du dialogue
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text('Nouvelle Enveloppe pour "${categorie.nom}"'),
-              content: SingleChildScrollView( // Pour éviter les problèmes de dépassement de hauteur
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    TextField(
-                      controller: _nomEnveloppeController,
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                          hintText: "Nom de l'enveloppe"),
-                      textCapitalization: TextCapitalization.sentences,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _montantInitialEnveloppeController,
-                      decoration: InputDecoration(
-                          hintText: "Montant initial (optionnel)",
-                          prefixText: "${currencyFormatter.currencySymbol} "),
-                      // Utiliser le symbole de la devise
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                    ),
-                    const SizedBox(height: 16),
-                    // Dropdown pour sélectionner le compte source
-                    if (_comptesBancairesUtilisateur.isNotEmpty)
-                      DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Compte Source Principal',
-                          border: OutlineInputBorder(), // Ajoute un style visuel
-                        ),
-                        value: _selectedCompteIdPourNouvelleEnveloppe,
-                        hint: const Text('Sélectionner un compte'),
-                        isExpanded: true,
-                        items: _comptesBancairesUtilisateur.map((compte) {
-                          return DropdownMenuItem<String>(
-                            value: compte.id,
-                            child: Text(compte.nom),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          setDialogState(() { // Mettre à jour l'état du dialogue
-                            _selectedCompteIdPourNouvelleEnveloppe = newValue;
-                          });
-                        },
-                        validator: (value) { // Validation simple
-                          if (value == null || value.isEmpty) {
-                            return 'Veuillez sélectionner un compte source.';
-                          }
-                          return null;
-                        },
-                      )
-                    else
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          "Chargement des comptes ou aucun compte disponible...",
-                          style: TextStyle(fontStyle: FontStyle.italic),
-                        ),
-                      ),
-                  ],
+        // Le StatefulBuilder n'est plus nécessaire car il n'y a plus d'état interne (comme le dropdown) à gérer dans le dialogue.
+        return AlertDialog(
+          title: Text('Nouvelle Enveloppe pour "${categorie.nom}"'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextField(
+                  controller: _nomEnveloppeController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                      hintText: "Nom de l'enveloppe"),
+                  textCapitalization: TextCapitalization.sentences,
                 ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                    child: const Text('Annuler'),
-                    onPressed: () => Navigator.of(dialogContext).pop()),
-                TextButton(
-                    child: const Text('Ajouter'),
-                    onPressed: () {
-                      // Valider que le compte source est sélectionné
-                      if (_selectedCompteIdPourNouvelleEnveloppe != null &&
-                          _selectedCompteIdPourNouvelleEnveloppe!.isNotEmpty) {
-                        _ajouterEnveloppe(categorie, dialogContext,
-                            _selectedCompteIdPourNouvelleEnveloppe!);
-                      } else {
-                        // Afficher un message si aucun compte n'est sélectionné
-                        // (ou utiliser la validation du DropdownButtonFormField)
-                        if (mounted) { // Assurez-vous que le widget est toujours monté
-                          ScaffoldMessenger
-                              .of(this.context)
-                              .showSnackBar( // Utiliser this.context pour le Scaffold principal
-                            const SnackBar(content: Text(
-                                'Veuillez sélectionner un compte source.')),
-                          );
-                        }
-                      }
-                    }),
+                // SUPPRIMÉ: SizedBox et TextField pour le montant initial
+                // SUPPRIMÉ: SizedBox et DropdownButtonFormField pour la sélection du compte
               ],
-            );
-          },
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+                child: const Text('Annuler'),
+                onPressed: () => Navigator.of(dialogContext).pop()),
+            TextButton(
+                child: const Text('Ajouter'),
+                onPressed: () {
+                  final nomEnveloppe = _nomEnveloppeController.text.trim();
+                  if (nomEnveloppe.isNotEmpty) {
+                    // MODIFIÉ: Appel de _ajouterEnveloppe sans le compteIdSelectionne et montantInitial
+                    _ajouterEnveloppe(categorie, dialogContext);
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(content: Text(
+                            'Veuillez saisir un nom pour l\'enveloppe.')),
+                      );
+                    }
+                  }
+                }),
+          ],
         );
       },
     );
   }
 
-  Future<void> _ajouterEnveloppe(Categorie categorie, BuildContext dialogContext) async {
+  Future<void> _ajouterEnveloppe(Categorie categorie,
+      BuildContext dialogContext,
+      // SUPPRIMÉ: Pas besoin de compteIdSelectionne ni de montantInitialController ici
+      ) async {
     final nomEnveloppe = _nomEnveloppeController.text.trim();
-    if (nomEnveloppe.isEmpty) {
-      // ... (validation du nom)
-      return;
-    }
+    // La vérification de nom vide est déjà faite avant d'appeler cette méthode
+
     if (_currentUser == null) {
-      // ... (validation utilisateur)
+      if (mounted) {
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(
+                content: Text(
+                    'Utilisateur non connecté. Impossible d\'ajouter l\'enveloppe.')));
+      }
       return;
     }
 
-    final nouvelIdEnveloppe = _firestore.collection('temp').doc().id;
+    final nouvelIdEnveloppe = _firestore
+        .collection('temp')
+        .doc()
+        .id; // Génère un ID unique côté client
 
+    // MODIFIÉ: Le montant initial est toujours 0.0 et pas de compte source
     final nouvelleEnveloppe = EnveloppeModel(
       id: nouvelIdEnveloppe,
       nom: nomEnveloppe,
       userId: _currentUser!.uid,
       categorieId: categorie.id,
-      compteSourceAttacheId: null, // Initialement non lié
-      couleurCompteSourceHex: null, // Initialement pas de couleur de compte
+      compteSourceAttacheId: null,
+      // MODIFIÉ: Toujours null
+      couleurCompteSourceHex: null,
+      // MODIFIÉ: Toujours null (ou votre valeur par défaut si applicable)
       soldeEnveloppe: 0.0,
-      ordre: 0, // Ou une logique pour déterminer l'ordre
+      // MODIFIÉ: Solde initial toujours 0.0
+      ordre: 0,
+      // Vous pouvez implémenter une logique d'ordre si nécessaire
       typeObjectifString: TypeObjectif.aucun.name,
+      // Valeur par défaut
+      objectifMontantPeriodique: null,
+      objectifDateEcheance: null,
       dateCreation: Timestamp.now(),
       derniereModification: Timestamp.now(),
-      // couleurThemeValue: null, // Ou une couleur par défaut si nécessaire à la création
+      // Assurez-vous que tous les champs requis par votre EnveloppeModel.toJson() sont ici
     );
 
     try {
-      await _firestore
-          .collection('users')
-          .doc(_currentUser!.uid)
-          .collection('categories')
-          .doc(categorie.id)
+      await _getUserCategoryDoc(
+          categorie.id)! // Le '!' est utilisé car on a vérifié _currentUser
           .collection('enveloppes')
-          .doc(nouvelIdEnveloppe)
+          .doc(nouvelIdEnveloppe) // Utilise l'ID généré
           .set(nouvelleEnveloppe.toJson());
 
-      Navigator.of(dialogContext).pop();
+      Navigator.of(dialogContext).pop(); // Ferme le dialogue
       _nomEnveloppeController.clear();
+      // SUPPRIMÉ: _montantInitialEnveloppeController.clear();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Enveloppe "$nomEnveloppe" ajoutée.')));
+            SnackBar(content: Text(
+                '"$nomEnveloppe" créez avec succès.')));
       }
     } catch (e) {
       print("Erreur ajout enveloppe: $e");
       if (mounted) {
-        ScaffoldMessenger.of(dialogContext).showSnackBar(
-            SnackBar(content: Text('Erreur lors de l\'ajout: $e')));
+        ScaffoldMessenger
+            .of(dialogContext)
+            .showSnackBar( // Utiliser dialogContext pour le SnackBar d'erreur du dialogue
+            SnackBar(
+                content: Text('Erreur lors de l\'ajout de l\'enveloppe: $e')));
       }
     }
   }
 
-// TODO: Implémenter _modifierEnveloppe et _supprimerEnveloppe si nécessaire ici
-// ou dans un écran de détail d'enveloppe.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Gérer le cas où l'utilisateur n'est pas (ou plus) connecté
-    if (_currentUser == null &&
-        mounted) { // Vérifier `mounted` au cas où l'état est disposé rapidement
+    if (_currentUser == null) {
+      // Afficher un état de chargement/erreur si l'utilisateur n'est pas connecté
+      // Cet état peut être amélioré pour être plus informatif.
       return Scaffold(
         appBar: AppBar(title: const Text('Budget - Catégories')),
         body: const Center(
@@ -646,14 +679,6 @@ class _GestionCategoriesEnveloppesScreenState
         ),
       );
     }
-    // Si _currentUser est null mais que le widget n'est plus monté,
-    // on ne devrait pas essayer de construire l'UI.
-    // Cela peut arriver si l'état est disposé pendant une opération asynchrone.
-    // Dans ce cas, retourner un conteneur vide est plus sûr.
-    else if (_currentUser == null && !mounted) {
-      return const SizedBox.shrink();
-    }
-
 
     return Scaffold(
       appBar: AppBar(
@@ -667,23 +692,21 @@ class _GestionCategoriesEnveloppesScreenState
           IconButton(
             icon: const Icon(Icons.reorder),
             tooltip: 'Réorganiser',
-            onPressed: _navigateToReorderScreen,
+            onPressed: _navigateToReorderScreen, // Implémentez cette navigation
           ),
         ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Widget pour afficher le total des objectifs mensuels
+          // Widget pour afficher le total des objectifs mensuels (si utilisé)
           StreamBuilder<List<EnveloppeModel>>(
             stream: _getAllEnveloppesAvecObjectifMensuelStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData) {
-                // Optionnel: afficher un petit indicateur de chargement discret
-                // return const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)));
                 return const SizedBox
-                    .shrink(); // Ou rien pendant le chargement initial
+                    .shrink(); // ou un petit indicateur de chargement
               }
               if (snapshot.hasError) {
                 print("Erreur Stream Objectifs Mensuels: ${snapshot.error}");
@@ -723,7 +746,7 @@ class _GestionCategoriesEnveloppesScreenState
 
               if (totalObjectifsMensuels == 0) {
                 return const SizedBox
-                  .shrink(); // Ne rien afficher si le total est 0
+                    .shrink(); // Ne rien afficher si le total est 0
               }
 
               return Padding(
@@ -757,13 +780,13 @@ class _GestionCategoriesEnveloppesScreenState
               );
             },
           ),
+          // Liste principale des catégories et de leurs enveloppes
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _getUserCategoriesCollection()
-                  ?.orderBy('nom')
-                  .snapshots(), // Ordonner par nom
+                  ?.orderBy('nom') // ou 'ordre' si vous l'utilisez
+                  .snapshots(),
               builder: (context, categorieSnapshot) {
-                // Gestion explicite de l'état de connexion initiale sans données
                 if (categorieSnapshot.connectionState ==
                     ConnectionState.waiting && !categorieSnapshot.hasData &&
                     !categorieSnapshot.hasError) {
@@ -772,8 +795,10 @@ class _GestionCategoriesEnveloppesScreenState
                 if (categorieSnapshot.hasError) {
                   print('Erreur Firestore Stream Catégories: ${categorieSnapshot
                       .error}');
-                  return Center(child: Text('Erreur: ${categorieSnapshot
-                      .error}. Vérifiez les logs.'));
+                  return Center(
+                      child: Text(
+                          'Erreur: ${categorieSnapshot
+                              .error}. Vérifiez les logs.'));
                 }
                 if (!categorieSnapshot.hasData ||
                     categorieSnapshot.data!.docs.isEmpty) {
@@ -805,34 +830,30 @@ class _GestionCategoriesEnveloppesScreenState
                   padding: const EdgeInsets.all(8.0),
                   itemCount: categories.length,
                   itemBuilder: (context, index) {
-                    final categorie = categories[index];
+                    final categorieCourante = categories[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
-                      // Espace entre les cartes de catégorie
-                      child: Column( // Utiliser Column pour le titre et la liste des enveloppes
+                      // Espace entre les catégories
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Titre de la catégorie avec actions
+                          // Entête de la catégorie
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10.0, vertical: 8.0),
                             margin: const EdgeInsets.only(
                                 bottom: 4.0, left: 4.0, right: 4.0),
-                            // Légère marge pour le titre
-                            // decoration: BoxDecoration( // Optionnel: style pour le titre
-                            //   border: Border(bottom: BorderSide(color: theme.dividerColor)),
-                            // ),
+                            // decoration: BoxDecoration( ... ), // Style optionnel
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
                                   child: Text(
-                                    categorie.nom.toUpperCase(),
+                                    categorieCourante.nom.toUpperCase(),
                                     style: theme.textTheme.titleMedium
                                         ?.copyWith(
                                       fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme
-                                          .primary, // Couleur distinctive pour le titre
+                                      color: theme.colorScheme.primary,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -843,29 +864,29 @@ class _GestionCategoriesEnveloppesScreenState
                                     IconButton(
                                       icon: Icon(Icons.add_circle,
                                           color: theme.colorScheme.secondary),
-                                      tooltip: 'Ajouter une enveloppe à ${categorie
+                                      tooltip:
+                                      'Ajouter une enveloppe à ${categorieCourante
                                           .nom}',
                                       onPressed: () =>
                                           _afficherDialogueAjoutEnveloppe(
-                                              categorie),
+                                              categorieCourante),
                                       visualDensity: VisualDensity.compact,
-                                      padding: EdgeInsets
-                                          .zero, // Réduire le padding par défaut
+                                      padding: EdgeInsets.zero,
                                     ),
                                     const SizedBox(width: 4),
-                                    // Espace entre les icônes
                                     PopupMenuButton<String>(
                                       icon: Icon(Icons.more_vert,
-                                          color: theme.colorScheme
-                                              .onSurfaceVariant),
-                                      tooltip: 'Options pour ${categorie.nom}',
+                                          color: theme
+                                              .colorScheme.onSurfaceVariant),
+                                      tooltip:
+                                      'Options pour ${categorieCourante.nom}',
                                       onSelected: (String value) {
                                         if (value == 'modifier_cat') {
                                           _afficherDialogueModificationCategorie(
-                                              categorie);
+                                              categorieCourante);
                                         } else if (value == 'supprimer_cat') {
                                           _confirmerSuppressionCategorie(
-                                              categorie);
+                                              categorieCourante);
                                         }
                                       },
                                       itemBuilder: (BuildContext context) =>
@@ -880,7 +901,8 @@ class _GestionCategoriesEnveloppesScreenState
                                         const PopupMenuItem<String>(
                                           value: 'supprimer_cat',
                                           child: ListTile(
-                                            leading: Icon(Icons.delete_outline,
+                                            leading: Icon(
+                                                Icons.delete_outline,
                                                 color: Colors.red),
                                             title: Text('Supprimer',
                                                 style: TextStyle(
@@ -894,13 +916,13 @@ class _GestionCategoriesEnveloppesScreenState
                               ],
                             ),
                           ),
-                          // StreamBuilder pour les enveloppes de cette catégorie
+                          // Liste des enveloppes pour cette catégorie
                           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                             stream: _getUserCategoriesCollection()
-                                ?.doc(categorie.id)
+                                ?.doc(categorieCourante.id)
                                 .collection('enveloppes')
                                 .orderBy(
-                                'ordre') // TODO: ou 'nom' si vous préférez
+                                'ordre') // ou 'nom', selon votre modèle EnveloppeModel
                                 .snapshots(),
                             builder: (context, enveloppeSnapshot) {
                               if (enveloppeSnapshot.connectionState ==
@@ -908,10 +930,12 @@ class _GestionCategoriesEnveloppesScreenState
                                   !enveloppeSnapshot.hasData) {
                                 return const Padding(
                                   padding: EdgeInsets.all(8.0),
-                                  child: Center(child: SizedBox(width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2.0))),
+                                  child: Center(
+                                      child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2.0))),
                                 );
                               }
                               if (enveloppeSnapshot.hasError) {
@@ -931,9 +955,10 @@ class _GestionCategoriesEnveloppesScreenState
                                       horizontal: 8.0, vertical: 4.0),
                                   child: ListTile(
                                     title: Text(
-                                        'Aucune enveloppe dans "${categorie
-                                            .nom}".', style: TextStyle(
-                                        fontStyle: FontStyle.italic)),
+                                        'Aucune enveloppe dans "${categorieCourante
+                                            .nom}".',
+                                        style: TextStyle(
+                                            fontStyle: FontStyle.italic)),
                                     dense: true,
                                     leading: Icon(Icons.inbox_outlined,
                                         color: theme.disabledColor),
@@ -948,63 +973,64 @@ class _GestionCategoriesEnveloppesScreenState
 
                               return ListView.builder(
                                 shrinkWrap: true,
-                                // Important dans un ListView parent
-                                physics: const NeverScrollableScrollPhysics(),
-                                // Important dans un ListView parent
+                                physics:
+                                const NeverScrollableScrollPhysics(),
+                                // Important pour ListView dans Column
                                 itemCount: enveloppes.length,
                                 itemBuilder: (context, envIndex) {
                                   final enveloppe = enveloppes[envIndex];
                                   final couleurThemeEnveloppe = enveloppe
                                       .couleurThemeValue != null ? Color(
                                       enveloppe.couleurThemeValue!) : theme
-                                      .colorScheme.surfaceContainerHighest;
+                                      .colorScheme
+                                      .surfaceContainerHighest; // Couleur par défaut
 
                                   return Card(
                                     elevation: 1.0,
                                     margin: const EdgeInsets.symmetric(
                                         horizontal: 8.0, vertical: 4.0),
+                                    // Utilisation d'une couleur de fond légère basée sur couleurThemeEnveloppe
                                     color: couleurThemeEnveloppe.withOpacity(
                                         0.15),
-                                    // Légère couleur de fond
                                     shape: RoundedRectangleBorder(
                                       side: BorderSide(
                                           color: couleurThemeEnveloppe,
-                                          width: 0.5),
+                                          width: 0.5), // Bordure subtile
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: ListTile(
                                       contentPadding: const EdgeInsets
                                           .symmetric(
                                           horizontal: 16.0, vertical: 8.0),
-                                      title: Text(
-                                        enveloppe.nom,
-                                        style: theme.textTheme.titleSmall
-                                            ?.copyWith(
-                                            fontWeight: FontWeight.w600),
-                                      ),
-                                      subtitle: Text(
-                                        'Alloué: ${currencyFormatter.format(
-                                            enveloppe
-                                                .soldeEnveloppe)}',
-                                        style: theme.textTheme.bodyMedium,
+                                      leading: Icon(Icons.wallet_outlined,
+                                          color: couleurThemeEnveloppe),
+                                      // Icône d'enveloppe
+                                      title: Text(enveloppe.nom,
+                                          style: theme.textTheme.titleSmall
+                                              ?.copyWith(
+                                              fontWeight: FontWeight.w500)),
+                                      subtitle: enveloppe.soldeEnveloppe == 0.0
+                                          ? null // Ne rien afficher si le solde est de 0
+                                          : Text(
+                                        'Solde: ${currencyFormatter.format(enveloppe.soldeEnveloppe)}',
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                                       ),
                                       trailing: _buildTrailingWidgetForEnveloppeModel(
                                           enveloppe, theme),
+                                      // Widget pour afficher l'objectif
                                       onTap: () {
-                                        print(
-                                            'Détail de l\'enveloppe ${enveloppe
-                                                .nom}');
-                                        // TODO: Naviguer vers l'écran de détail/modification de l'enveloppe
-                                        // Passer categorie.id et enveloppe.id
-                                        ScaffoldMessenger
-                                            .of(context)
-                                            .showSnackBar(
-                                          SnackBar(content: Text(
-                                              'Navigation vers le détail de ${enveloppe
-                                                  .nom} non implémentée.')),
-                                        );
+                                        // TODO: Naviguer vers les détails de l'enveloppe ou une action
+                                        print('Enveloppe "${enveloppe
+                                            .nom}" cliquée.');
+                                        // Navigator.push(context, MaterialPageRoute(builder: (context) => DetailEnveloppeScreen(enveloppe: enveloppe)));
                                       },
-                                      // onLongPress: () { /* Pourrait ouvrir un menu d'options pour l'enveloppe */ },
+                                      onLongPress: () {
+                                        // TODO: Afficher un menu contextuel pour l'enveloppe (modifier, supprimer, etc.)
+                                        print(
+                                            'Long press sur l\'enveloppe "${enveloppe
+                                                .nom}"');
+                                      },
                                     ),
                                   );
                                 },
@@ -1012,12 +1038,12 @@ class _GestionCategoriesEnveloppesScreenState
                             },
                           ),
                           if (index < categories.length -
-                              1) // Ne pas ajouter de Divider après le dernier item
+                              1) // Ajoute un séparateur entre les catégories sauf pour la dernière
                             Divider(height: 16,
-                                thickness: 1,
+                                thickness: 0.5,
                                 indent: 8,
-                                endIndent: 8,
-                                color: theme.dividerColor.withOpacity(0.5)),
+                                endIndent: 8),
+
                         ],
                       ),
                     );

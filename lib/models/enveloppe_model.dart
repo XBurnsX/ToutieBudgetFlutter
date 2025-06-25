@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../pages/gestion_categories_enveloppes_screen.dart';
+
 class EnveloppeModel {
   // ... autres champs existants ...
   String id;
@@ -17,6 +19,8 @@ class EnveloppeModel {
   Timestamp dateCreation;
   Timestamp derniereModification;
   int? couleurThemeValue; // Ce champ est-il toujours pertinent ou est-il remplacé par couleurCompteSourceHex pour l'affichage ?
+  int? iconeCodePoint; // Ou String? si vous stockez le nom de l'icône
+  String? iconeFontFamily;
 
   EnveloppeModel({
     required this.id,
@@ -33,6 +37,8 @@ class EnveloppeModel {
     required this.dateCreation,
     required this.derniereModification,
     this.couleurThemeValue,
+    this.iconeCodePoint,
+    this.iconeFontFamily,
   });
 
   factory EnveloppeModel.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -55,6 +61,8 @@ class EnveloppeModel {
       dateCreation: data['dateCreation'] as Timestamp? ?? Timestamp.now(),
       derniereModification: data['derniereModification'] as Timestamp? ?? Timestamp.now(),
       couleurThemeValue: data['couleurThemeValue'] as int?,
+      iconeCodePoint: data['iconeCodePoint'] as int?,
+      iconeFontFamily: data['iconeFontFamily'] as String?,
     );
   }
 
@@ -72,7 +80,9 @@ class EnveloppeModel {
       'objectifDateEcheance': objectifDateEcheance,
       'dateCreation': dateCreation,
       'derniereModification': derniereModification,
-      'couleurThemeValue': couleurThemeValue,
+      'couleurThemeValue': couleurThemeValue,'iconeCodePoint': iconeCodePoint,
+      'iconeFontFamily': iconeFontFamily,
+
     };
   }
 }

@@ -177,18 +177,16 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Disponible",
+                    "Disponible", // Texte "Disponible" pour la catégorie
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: Colors.white70,
                       fontSize: 11,
                     ),
                   ),
-                  Text(
-                    currencyFormatter.format(enveloppe.soldeEnveloppe),
+                  Text( // <--- CORRECTION ICI
+                    currencyFormatter.format(categorie.disponibleTotal), // Utilise le total disponible de la catégorie
                     style: TextStyle(
-                      color: enveloppe.couleurCompteSourceHex != null
-                          ? Color(enveloppe.couleurCompteSourceHex!) // Utilise la couleur du compte lié
-                          : theme.colorScheme.onSurface, // Couleur par défaut si non lié
+                      color: couleurTexteDisponible, // Utilise la couleur déjà déterminée pour le total de la catégorie
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -198,116 +196,8 @@ class _BudgetCategoriesListState extends State<BudgetCategoriesList> {
             ],
           ),
         ),
-        Container(
-          color: Colors.grey[900], // Fond pour la section des enveloppes
-          child: Column(
-            children: categorie.enveloppes
-                .asMap()
-                .entries
-                .map((entry) {
-              int idx = entry.key;
-              EnveloppePourAffichageBudget enveloppeVM = entry.value;
-
-              // Créer l'objet EnveloppeUIData à partir de EnveloppePourAffichageBudget
-              // Assurez-vous que EnveloppePourAffichageBudget a bien typeObjectif, montantCible, dateCible, ordre
-              // et N'A PLUS messageSous
-              final EnveloppeUIData uiData = EnveloppeUIData(
-                id: enveloppeVM.id,
-                nom: enveloppeVM.nom,
-                iconeCodePoint: enveloppeVM.icone?.codePoint,
-                soldeActuel: enveloppeVM.disponible,
-                montantAlloue: enveloppeVM.montantAlloue,
-                typeObjectif: enveloppeVM.typeObjectif,
-                // CHAMP IMPORTANT
-                montantCible: enveloppeVM.montantCible,
-                // CHAMP IMPORTANT
-                dateCible: enveloppeVM.dateCible,
-                // CHAMP IMPORTANT
-                couleurThemeValue: enveloppeVM.couleur.value,
-                // Si vous avez un champ distinct pour couleurSoldeCompte dans EnveloppePourAffichageBudget, utilisez-le
-                // sinon, décidez d'une valeur par défaut ou utilisez la même que couleurThemeValue
-                couleurSoldeCompteValue: enveloppeVM.couleur.value,
-                // Exemple: utiliser la même
-                ordre: enveloppeVM.ordre ?? idx,
-                // 'depense' n'est pas directement passé à EnveloppeUIData.
-                // EnveloppeCard calcule ce dont il a besoin (comme le progrès)
-                // à partir de soldeActuel et montantAlloue, ou vous pourriez ajouter
-                // un champ 'depense' à EnveloppeUIData si EnveloppeCard en a besoin explicitement.
-              );
-
-              return EnveloppeCard(
-                enveloppe: uiData,
-                onTap: () {
-                  print('Enveloppe ${uiData.nom} (ID: ${uiData
-                      .id}) cliquée (via EnveloppeCard)');
-                  // TODO: Implémenter la navigation ou l'action au clic sur l'enveloppe
-                },
-                // Si vous voulez un Divider entre chaque carte, vous pouvez l'ajouter ici
-                // ou gérer le padding/margin dans EnveloppeCard lui-même.
-                // Exemple :
-                // child: Column(children: [ EnveloppeCard(...), if (idx < categorie.enveloppes.length -1) Divider() ])
-              );
-            }).toList(),
-          ),
-        ),
-        Divider(height: 1, color: Colors.grey[700]),
-        // Séparateur entre les catégories
+        // ... la suite pour afficher les EnveloppeCard
       ],
     );
   }
-
-// CETTE MÉTHODE EST MAINTENANT OBSOLÈTE ET DEVRAIT ÊTRE SUPPRIMÉE OU COMPLÈTEMENT COMMENTÉE
-/*
-  Widget _buildEnveloppeItem(ThemeData theme,
-      EnveloppePourAffichageBudget enveloppe, // <<--- 'enveloppe' ici est le type qui n'a plus 'messageSous'
-      Color couleurDeBasePourEnveloppe) {
-    // ... (ancienne logique de calcul de progression etc.)
-
-    // L'ERREUR VIENT DE LA LIGNE SUIVANTE DANS VOTRE CODE PARTAGÉ:
-    // if (enveloppe.messageSous != null &&
-    // enveloppe.messageSous!.isNotEmpty) ...[
-
-    // TOUT LE CONTENU DE CETTE MÉTHODE DEVRAIT ÊTRE SUPPRIMÉ
-    // PUISQUE EnveloppeCard FAIT LE TRAVAIL
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          print('Enveloppe ${enveloppe
-              .nom} cliquée (depuis BudgetCategoriesList - ANCIENNE METHODE)');
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                // ... ancienne Row ...
-              ),
-              // LE BLOC QUI CAUSE L'ERREUR :
-              // if (enveloppe.messageSous != null &&
-              //     enveloppe.messageSous!.isNotEmpty) ...[
-              //   const SizedBox(height: 5),
-              //   Padding(
-              //     padding: EdgeInsets.only(
-              //         left: enveloppe.icone != null ? 32 : 0),
-              //     child: Text(
-              //       enveloppe.messageSous!, // <--- ICI EST L'ACCÈS AU CHAMP INEXISTANT
-              //       style: theme.textTheme.bodySmall
-              //           ?.copyWith(color: Colors.grey[400], fontSize: 11.5),
-              //     ),
-              //   ),
-              // ],
-              const SizedBox(height: 7),
-              Padding(
-                // ... ancien LinearProgressIndicator ...
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  */
 }
